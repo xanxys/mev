@@ -16,13 +16,7 @@ class MevApplication {
         canvasInsertionParent.appendChild(this.renderer.domElement);
 
         this.renderer.setClearColor(new THREE.Color("#ddd"));
-
-        const stageGeom = new THREE.CircleBufferGeometry(1, 64);
-        const stageMat = new THREE.MeshBasicMaterial({ color: "white" });
-        const stageObj = new THREE.Mesh(stageGeom, stageMat);
-        stageObj.setRotationFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI * 1.5);
-        this.scene.add(stageObj);
-
+        this.scene.add(this._create_stage());
         this.scene.add(new THREE.DirectionalLight(0xffffff, 1.0));
 
         // Overlay UI
@@ -70,6 +64,24 @@ class MevApplication {
         this.renderer.render(this.scene, this.camera);
 
         requestAnimationFrame(() => this.animate());
+    }
+
+    // Create circular stage with:
+    // * normal pointing Y+ ("up" in VRM spec & me/v app)
+    // * notch at Z-. ("front" in VRM spec)
+    _create_stage() {
+        const stageGeom = new THREE.CircleBufferGeometry(1, 64);
+        const stageMat = new THREE.MeshBasicMaterial({ color: "white" });
+        const stageObj = new THREE.Mesh(stageGeom, stageMat);
+        stageObj.setRotationFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI * 1.5);
+
+        const notchGeom = new THREE.CircleBufferGeometry(0.02, 16);
+        const notchMat = new THREE.MeshBasicMaterial({ color: "grey" });
+        const notchObj = new THREE.Mesh(notchGeom, notchMat);
+        notchObj.position.set(0, 0.95, 0.001);
+
+        stageObj.add(notchObj);
+        return stageObj;
     }
 }
 
