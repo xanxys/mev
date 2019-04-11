@@ -1,5 +1,29 @@
 "use strict";
 
+/**
+ * @return {Promise<ArrayBuffer>} vrm (.glb format) blob
+*/
+function serialize_vrm(three_vrm_data) {
+    // TODO: Create proper VRM serializer.
+
+    //console.log("Serializer", three_vrm_data.parser.json);
+    //"glTF"
+
+    const exporter = new THREE.GLTFExporter();
+    const options = {
+        binary: true,
+        includeCustomExtensions: true,
+    };
+    console.log(three_vrm_data);
+    three_vrm_data.model.userData.gltfExtensions = three_vrm_data.parser.json.extensions;
+    return new Promise((resolve, reject) => {
+        exporter.parse(three_vrm_data.model, gltf => {
+            console.log(gltf);
+            resolve(gltf);
+        }, options);
+    });
+}
+
 class MevApplication {
     constructor(width, height, canvasInsertionParent) {
         // Three.js canvas
@@ -20,6 +44,7 @@ class MevApplication {
         this.scene.add(new THREE.DirectionalLight(0xffffff, 1.0));
 
         // Overlay UI
+        const app = this;
         const scene = this.scene;
         const vm = new Vue({
             el: '#vue_menu',
@@ -29,32 +54,14 @@ class MevApplication {
                 change_file: function (event) {
                     console.log(event.srcElement.files[0]);
                     const vrmFile = event.srcElement.files[0];
-                    const loader = new THREE.VRMLoader();
-
-                    // three-vrm currently doesn't have .parse() method, need to convert to data URL...
-                    // (inefficient)
-                    const reader = new FileReader();
-                    reader.addEventListener('load', () => {
-                        loader.load(reader.result,
-                            vrm => {
-                                console.log("VRM loaded", vrm);
-                                scene.add(vrm.model);
-
-                                console.log(vrm.textures);
-
-                                vrm.textures.filter(e => e !== undefined).forEach(e => {
-                                    e.image.width = "200";
-                                    document.getElementById("textures").appendChild(e.image);
-                                });
-                            },
-                            progress => {
-                            },
-                            error => {
-                                console.log("VRM loading failed", error);
-                            });
+                    app.load_vrm(vrmFile);
+                },
+                download_vrm: function (event) {
+                    console.log("Download requested");
+                    serialize_vrm(app.vrm).then(glb_buffer => {
+                        saveAs(new Blob([glb_buffer], { type: "application/octet-stream" }), "test.vrm");
                     });
-                    reader.readAsDataURL(vrmFile);
-                }
+                },
             },
         });
     }
@@ -64,6 +71,37 @@ class MevApplication {
         this.renderer.render(this.scene, this.camera);
 
         requestAnimationFrame(() => this.animate());
+    }
+
+    load_vrm(vrm_file) {
+        const loader = new THREE.VRMLoader();
+        // three-vrm currently doesn't have .parse() method, need to convert to data URL...
+        // (inefficient)
+        const reader = new FileReader();
+        const app = this;
+        const scene = this.scene;
+        reader.addEventListener('load', () => {
+            loader.load(reader.result,
+                vrm => {
+                    console.log("VRM loaded", vrm);
+                    scene.add(vrm.model);
+
+                    console.log(vrm.textures);
+
+                    vrm.textures.filter(e => e !== undefined).forEach(e => {
+                        e.image.width = "32";
+                        document.getElementById("textures").appendChild(e.image);
+                    });
+
+                    app.vrm = vrm;
+                },
+                progress => {
+                },
+                error => {
+                    console.log("VRM loading failed", error);
+                });
+        });
+        reader.readAsDataURL(vrm_file);
     }
 
     // Create circular stage with:
