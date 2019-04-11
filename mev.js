@@ -1,6 +1,7 @@
 
 class MevApplication {
     constructor(width, height, canvasInsertionParent) {
+        // Three.js canvas
         this.scene = new THREE.Scene();
         this.camera = new THREE.PerspectiveCamera(75, width / height, 0.01, 50);
         this.camera.position.set(-3, 1, 0);
@@ -18,6 +19,17 @@ class MevApplication {
         const stageObj = new THREE.Mesh(stageGeom, stageMat);
         stageObj.setRotationFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI * 1.5);
         this.scene.add(stageObj);
+
+        // Overlay UI
+        const vm = new Vue({
+            el: '#vue_menu',
+            methods: {
+                change_file: function (event) {
+                    console.log(event.srcElement.files[0]);
+                    const vrmFile = event.srcElement.files[0];
+                }
+            },
+        });
     }
 
     animate() {
