@@ -20,13 +20,34 @@ class MevApplication {
         stageObj.setRotationFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI * 1.5);
         this.scene.add(stageObj);
 
+        this.scene.add(new THREE.DirectionalLight(0xffffff, 1.0));
+
         // Overlay UI
+        const scene = this.scene;
         const vm = new Vue({
             el: '#vue_menu',
             methods: {
                 change_file: function (event) {
                     console.log(event.srcElement.files[0]);
                     const vrmFile = event.srcElement.files[0];
+                    const loader = new THREE.VRMLoader();
+
+                    // three-vrm currently doesn't have .parse() method, need to convert to data URL...
+                    // (inefficient)
+                    const reader = new FileReader();
+                    reader.addEventListener('load', () => {
+                        loader.load(reader.result,
+                            vrm => {
+                                console.log("VRM loaded", vrm);
+                                scene.add(vrm.model);
+                            },
+                            progress => {
+                            },
+                            error => {
+                                console.log("VRM loading failed", error);
+                            });
+                    });
+                    reader.readAsDataURL(vrmFile);
                 }
             },
         });
@@ -34,7 +55,7 @@ class MevApplication {
 
     animate() {
         this.renderer.render(this.scene, this.camera);
-        requestAnimationFrame(() => this.animate);
+        requestAnimationFrame(() => this.animate());
     }
 }
 
