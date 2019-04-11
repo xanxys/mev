@@ -1,4 +1,21 @@
 <!DOCTYPE html>
 <html>
-  <body>Hello!</body>
+
+<head>
+  <title>me/v</title>
+</head>
+
+<body style="margin:0; overflow:hidden">
+  <div style="position: absolute; left:8px; top: 8px" id="vue_menu">
+    Open vrm File<br />
+    <input type="file" @change="change_file"></div>
+  </div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/2.6.10/vue.min.js"
+    integrity="sha256-chlNFSVx3TdcQ2Xlw7SvnbLAavAQLO0Y/LBiWX04viY=" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/103/three.min.js"
+    integrity="sha256-T4lfPbatZLyNhpEgCvtmXmlhOUq0HZHkDX4cMlQWExA=" crossorigin="anonymous"></script>
+  <script src="./third_party/three_vrm-0.0.15.js"></script>
+  <script src="./mev.js"></script>
+</body>
+
 </html>
