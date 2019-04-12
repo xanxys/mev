@@ -144,34 +144,6 @@ THREE.GLTFExporter.prototype = {
 		}
 
 		/**
-		 * Converts a string to an ArrayBuffer.
-		 * @param  {string} text
-		 * @return {ArrayBuffer}
-		 */
-		function stringToArrayBuffer( text ) {
-
-			if ( window.TextEncoder !== undefined ) {
-
-				return new TextEncoder().encode( text ).buffer;
-
-			}
-
-			var array = new Uint8Array( new ArrayBuffer( text.length ) );
-
-			for ( var i = 0, il = text.length; i < il; i ++ ) {
-
-				var value = text.charCodeAt( i );
-
-				// Replacing multi-byte character with space(0x20).
-				array[ i ] = value > 0xFF ? 0x20 : value;
-
-			}
-
-			return array.buffer;
-
-		}
-
-		/**
 		 * Get the min and max vectors from the given attribute
 		 * @param  {THREE.BufferAttribute} attribute Attribute to find the min/max in range from start to start + count
 		 * @param  {Integer} start
@@ -882,19 +854,32 @@ THREE.GLTFExporter.prototype = {
 
 			}
 
-			if ( material.isShaderMaterial ) {
-
-				console.warn( 'GLTFExporter: THREE.ShaderMaterial not supported.' );
-				return null;
-
-			}
-
 			// @QUESTION Should we avoid including any attribute that has the default value?
 			var gltfMaterial = {
 
 				pbrMetallicRoughness: {}
 
 			};
+
+			// Hack alert!!
+			// TODO: Stabilize this
+			if (material.name.indexOf("MToon") >= 0) {
+				// Convert to unlit for now.
+			
+				gltfMaterial.extensions = { KHR_materials_unlit: {} };
+				extensionsUsed[ 'KHR_materials_unlit' ] = true;	
+
+
+
+
+			} else if ( material.isShaderMaterial ) {
+
+				console.warn( 'GLTFExporter: THREE.ShaderMaterial not supported.', material );
+				return null;
+
+			}
+
+
 
 			if ( material.isMeshBasicMaterial ) {
 
@@ -909,7 +894,7 @@ THREE.GLTFExporter.prototype = {
 			}
 
 			// pbrMetallicRoughness.baseColorFactor
-			var color = material.color.toArray().concat( [ material.opacity ] );
+			var color = material.color === undefined ? [1,1,1,1] : material.color.toArray().concat( [ material.opacity ] );
 
 			if ( ! equalArray( color, [ 1, 1, 1, 1 ] ) ) {
 
@@ -1944,98 +1929,15 @@ THREE.GLTFExporter.prototype = {
 		processInput( input );
 
 		Promise.all( pending ).then( function () {
-
-			// Merge buffers.
-			var blob = new Blob( buffers, { type: 'application/octet-stream' } );
-
-			// Set top-level extensions.
-			if ( Object.keys(options.topLevelExtensions).length > 0 ) outputJSON.extensions = options.topLevelExtensions;
-
 			// Declare extensions.
-			var extensionsUsedSet =
-				new Set([...Object.keys( extensionsUsed ), ...Object.keys(options.topLevelExtensions)]);
-			if ( extensionsUsedSet.size > 0 ) outputJSON.extensionsUsed = [...extensionsUsedSet];
+			var extensionsUsedList = Object.keys(extensionsUsed);
+			if ( extensionsUsedList.length > 0 ) outputJSON.extensionsUsed = extensionsUsedList;
 
-			if ( outputJSON.buffers && outputJSON.buffers.length > 0 ) {
-
-				// Update bytelength of the single buffer.
-				outputJSON.buffers[ 0 ].byteLength = blob.size;
-
-				var reader = new window.FileReader();
-
-				if ( options.binary === true ) {
-
-					// https://github.com/KhronosGroup/glTF/blob/master/specification/2.0/README.md#glb-file-format-specification
-
-					var GLB_HEADER_BYTES = 12;
-					var GLB_HEADER_MAGIC = 0x46546C67;
-					var GLB_VERSION = 2;
-
-					var GLB_CHUNK_PREFIX_BYTES = 8;
-					var GLB_CHUNK_TYPE_JSON = 0x4E4F534A;
-					var GLB_CHUNK_TYPE_BIN = 0x004E4942;
-
-					reader.readAsArrayBuffer( blob );
-					reader.onloadend = function () {
-
-						// Binary chunk.
-						var binaryChunk = getPaddedArrayBuffer( reader.result );
-						var binaryChunkPrefix = new DataView( new ArrayBuffer( GLB_CHUNK_PREFIX_BYTES ) );
-						binaryChunkPrefix.setUint32( 0, binaryChunk.byteLength, true );
-						binaryChunkPrefix.setUint32( 4, GLB_CHUNK_TYPE_BIN, true );
-
-						// JSON chunk.
-						var jsonChunk = getPaddedArrayBuffer( stringToArrayBuffer( JSON.stringify( outputJSON ) ), 0x20 );
-						var jsonChunkPrefix = new DataView( new ArrayBuffer( GLB_CHUNK_PREFIX_BYTES ) );
-						jsonChunkPrefix.setUint32( 0, jsonChunk.byteLength, true );
-						jsonChunkPrefix.setUint32( 4, GLB_CHUNK_TYPE_JSON, true );
-
-						// GLB header.
-						var header = new ArrayBuffer( GLB_HEADER_BYTES );
-						var headerView = new DataView( header );
-						headerView.setUint32( 0, GLB_HEADER_MAGIC, true );
-						headerView.setUint32( 4, GLB_VERSION, true );
-						var totalByteLength = GLB_HEADER_BYTES
-							+ jsonChunkPrefix.byteLength + jsonChunk.byteLength
-							+ binaryChunkPrefix.byteLength + binaryChunk.byteLength;
-						headerView.setUint32( 8, totalByteLength, true );
-
-						var glbBlob = new Blob( [
-							header,
-							jsonChunkPrefix,
-							jsonChunk,
-							binaryChunkPrefix,
-							binaryChunk
-						], { type: 'application/octet-stream' } );
-
-						var glbReader = new window.FileReader();
-						glbReader.readAsArrayBuffer( glbBlob );
-						glbReader.onloadend = function () {
-
-							onDone( glbReader.result );
-
-						};
-
-					};
-
-				} else {
-
-					reader.readAsDataURL( blob );
-					reader.onloadend = function () {
-
-						var base64data = reader.result;
-						outputJSON.buffers[ 0 ].uri = base64data;
-						onDone( outputJSON );
-
-					};
-
-				}
-
-			} else {
-
-				onDone( outputJSON );
-
-			}
+			onDone( {
+				json: outputJSON,
+				buffers: buffers,
+				cachedData: cachedData,
+			} );
 
 		} );
 
