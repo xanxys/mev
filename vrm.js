@@ -1,7 +1,8 @@
 "use strict"; // ES6
 
-
 /**
+ * Serialize glTF JSON & binary buffers into a single binary (GLB format).
+ * Spec: https://github.com/KhronosGroup/glTF/blob/master/specification/2.0/README.md#glb-file-format-specification
  * @return {Promise<ArrayBuffer>}
  */
 function serialize_glb(obj) {
@@ -15,36 +16,19 @@ function serialize_glb(obj) {
     function getPaddedArrayBuffer(arrayBuffer, paddingByte) {
         paddingByte = paddingByte || 0;
         var paddedLength = getPaddedBufferSize(arrayBuffer.byteLength);
+        if (paddedLength === arrayBuffer.byteLength) {
+            return arrayBuffer;
+        }
 
-        if (paddedLength !== arrayBuffer.byteLength) {
-            var array = new Uint8Array(paddedLength);
-            array.set(new Uint8Array(arrayBuffer));
-
-            if (paddingByte !== 0) {
-                for (var i = arrayBuffer.byteLength; i < paddedLength; i++) {
-                    array[i] = paddingByte;
-                }
+        const array = new Uint8Array(paddedLength);
+        array.set(new Uint8Array(arrayBuffer));
+        if (paddingByte !== 0) {
+            for (var i = arrayBuffer.byteLength; i < paddedLength; i++) {
+                array[i] = paddingByte;
             }
-            return array.buffer;
-        }
-        return arrayBuffer;
-    }
-
-    function stringToArrayBuffer(text) {
-        if (window.TextEncoder !== undefined) {
-            return new TextEncoder().encode(text).buffer;
-        }
-
-        var array = new Uint8Array(new ArrayBuffer(text.length));
-        for (var i = 0, il = text.length; i < il; i++) {
-            var value = text.charCodeAt(i);
-            // Replacing multi-byte character with space(0x20).
-            array[i] = value > 0xFF ? 0x20 : value;
         }
         return array.buffer;
     }
-
-    // https://github.com/KhronosGroup/glTF/blob/master/specification/2.0/README.md#glb-file-format-specification
 
     // Merge buffers.
     const blob = new Blob(buffers, { type: 'application/octet-stream' });
@@ -70,7 +54,7 @@ function serialize_glb(obj) {
             binaryChunkPrefix.setUint32(4, GLB_CHUNK_TYPE_BIN, true);
 
             // JSON chunk.
-            var jsonChunk = getPaddedArrayBuffer(stringToArrayBuffer(JSON.stringify(outputJSON)), 0x20);
+            var jsonChunk = getPaddedArrayBuffer(new TextEncoder().encode(JSON.stringify(outputJSON)).buffer, 0x20);
             var jsonChunkPrefix = new DataView(new ArrayBuffer(GLB_CHUNK_PREFIX_BYTES));
             jsonChunkPrefix.setUint32(0, jsonChunk.byteLength, true);
             jsonChunkPrefix.setUint32(4, GLB_CHUNK_TYPE_JSON, true);
@@ -107,14 +91,8 @@ function serialize_glb(obj) {
  * @return {Promise<ArrayBuffer>} vrm (.glb format) blob
  */
 export function serialize_vrm(three_vrm_data, vrm_ext) {
-    // TODO: Create proper VRM serializer.
-
-    //console.log("Serializer", three_vrm_data.parser.json);
-    //"glTF"
-
     const exporter = new THREE.GLTFExporter();
     const options = {
-        binary: true,
         includeCustomExtensions: true,
     };
 
@@ -129,8 +107,8 @@ export function serialize_vrm(three_vrm_data, vrm_ext) {
         }, options);
     });
 
-    function augment_data(obj) {
-        console.log("augmenting", obj, "with", vrm_ext);
+    function attach_vrm_extension(obj) {
+        console.log("Attaching VRM", vrm_ext, "to", obj);
         if (obj.json.extensionsUsed === undefined) {
             obj.json.extensionsUsed = [];
         }
@@ -138,36 +116,42 @@ export function serialize_vrm(three_vrm_data, vrm_ext) {
             obj.json.extensions = {};
         }
 
-        obj.json.extensions["VRM"] =
-            {
-                blendShapeMaster: {
-                    blendShapeGroups: [],
-                },
-                humanoid: vrm_ext.vrm.parser.json.extensions.VRM.humanoid, // HACK
-                firstPerson: vrm_ext.vrm.parser.json.extensions.VRM.firstPerson, // HACK
-                materialProperties: obj.json.materials.map(mat => {
-                    return {
-                        name: mat.name,
-                        shader: "UnlitTexture",
-                        renderQueue: 2000,
-                        floatProperties: {},
-                        vectorProperties: {},
-                        textureProperties: {},
-                        keywordMap: {},
-                        tagMap: {},
-                    };
-                }),
-                meta: vrm_ext.meta,
-                secondaryAnimation: {},
-                exporterVersion: "me/v",
-            };
+        const ref_to_id = new VrmExtensionMapper({
+            map_node: node_ref => {
+                const node_id = obj.nodeMap.get(node_ref);
+                if (node_id === undefined) {
+                    console.warn("map_node failed (not found in nodeMap)", node_ref);
+                    return 0;
+                } else {
+                    return node_id;
+                }
+            },
+            map_mesh: mesh_ref => {
+                // Looks suspicious. Why skins instead of meshes?
+                const skin_id = obj.skins.findIndex(e => e === mesh_ref[0]);
+                if (skin_id < 0) {
+                    console.warn("map_node failed (not found in skins)", mesh_ref);
+                    return 0;
+                } else {
+                    return skin_id;
+                }
+            },
+            map_texture: tex_ref => {
+                console.log("map_texture", tex_ref);
+                return 0;
+            },
+        });
+
+        const ext_with_ids = ref_to_id.convert_vrm(vrm_ext.vrm);
+        ext_with_ids["exporterVersion"] = "me/v";
+
+        obj.json.extensions["VRM"] = ext_with_ids;
         obj.json.extensionsUsed = Array.from(new Set(["VRM", ...obj.json.extensionsUsed]));
         return obj;
     }
 
-    return gltf_and_buffers.then(augment_data).then(serialize_glb);
+    return gltf_and_buffers.then(attach_vrm_extension).then(serialize_glb);
 }
-
 
 
 /**
@@ -181,17 +165,41 @@ export class VrmExtension {
      * @param {THREE.VRM} VRM object given by THREE.VRMLoader
      */
     constructor(vrm) {
-        console.log("Parsing VRM extension");
-        this.vrm = vrm;
-        const ext = vrm.parser.json.extensions.VRM;
+        this.orig_vrm = vrm;
 
-        // TODO: Write parser
-        this.blendShapeMaster = this._convert_blendshape(ext.blendShapeMaster);
-        this.humanoid = this._convert_humanoid(ext.humanoid);
-        this.firstPerson = this._convert_firstperson(ext.firstPerson);
-        this.materialProperties = ext.materialProperties;
-        this.meta = ext.meta;
-        this.secondaryAnimation = {};
+        const ref_to_real = new VrmExtensionMapper({
+            map_node: node_id => vrm.nodes[node_id],
+            map_mesh: mesh_id => vrm.meshes[mesh_id],
+            map_texture: tex_id => {
+                console.log("MT", tex_id);
+                return vrm.textures[tex_id];
+            }
+        });
+        this.vrm = ref_to_real.convert_vrm(vrm.parser.json.extensions.VRM);
+    }
+}
+
+/**
+ * Traversal & mapping of glTF references (node, texture, material) in VRM extension JSON structure.
+ */
+class VrmExtensionMapper {
+    /**
+     * @param {Object} mapper, must have following methods: map_node, map_mesh, map_texture
+     */
+    constructor(mapper) {
+        this.mapper = mapper;
+    }
+
+    // https://github.com/dwango/UniVRM/blob/master/specification/0.0/schema/vrm.schema.json
+    convert_vrm(vrm) {
+        return {
+            blendShapeMaster: this._convert_blendshape(vrm.blendShapeMaster),
+            humanoid: this._convert_humanoid(vrm.humanoid),
+            firstPerson: this._convert_firstperson(vrm.firstPerson),
+            materialProperties: vrm.materialProperties.map(mat => this._convert_material(mat)),
+            meta: vrm.meta,
+            secondaryAnimation: {},
+        };
     }
 
     _convert_blendshape(blendshape) {
@@ -212,7 +220,7 @@ export class VrmExtension {
 
     _convert_blendshape_bind(bind) {
         return {
-            mesh: this.vrm.meshes[bind.mesh],
+            mesh: this.mapper.map_mesh(bind.mesh),
             index: bind.index, // (probably) morph target index of the mesh.
             weight: bind.weight,
         };
@@ -236,7 +244,7 @@ export class VrmExtension {
     _convert_humanoid_bone(bone) {
         return {
             bone: bone.bone,
-            node: this.vrm.nodes[bone.node],
+            node: this.mapper.map_node(bone.node),
             useDefaultValues: bone.useDefaultValues,
             min: bone.min,
             max: bone.max,
@@ -247,7 +255,7 @@ export class VrmExtension {
 
     _convert_firstperson(firstperson) {
         return {
-            firstPersonBone: this.vrm.nodes[firstperson.firstPersonBone],
+            firstPersonBone: this.mapper.map_node(firstperson.firstPersonBone),
             firstPersonBoneOffset: firstperson.firstPersonBoneOffset,
             meshAnnotations: firstperson.meshAnnotations.map(annot => this._convert_firstperson_meshannotation(annot)),
             lookAtTypeName: firstperson.lookAtTypeName,
@@ -259,8 +267,27 @@ export class VrmExtension {
 
     _convert_firstperson_meshannotation(annot) {
         return {
-            mesh: this.vrm.meshes[annot.mesh],
+            mesh: this.mapper.map_mesh(annot.mesh),
             firstPersonFlag: annot.firstPersonFlag,
+        };
+    }
+
+    _convert_material(mat) {
+        const texProp = new Map();
+        console.log("_convert_mat", mat.textureProperties);
+        for (let texName in mat.textureProperties) {
+            texProp[texName] = this.mapper.map_texture(mat.textureProperties[texName]);
+        }
+        // Spec says "object", but textureProperties actually refers to glTF textures.
+        return {
+            name: mat.name,
+            shader: mat.shader,
+            renderQueue: mat.renderQueue,
+            floatProperties: mat.floatProperties,
+            vectorProperties: mat.vectorProperties,
+            textureProperties: texProp,
+            keywordMap: mat.keywordMap,
+            tagMap: mat.tagMap,
         };
     }
 }

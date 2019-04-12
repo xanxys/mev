@@ -73,7 +73,6 @@ THREE.GLTFExporter.prototype = {
 	parse: function ( input, onDone, options ) {
 
 		var DEFAULT_OPTIONS = {
-			binary: false,
 			trs: false,
 			onlyVisible: true,
 			truncateDrawRange: true,
@@ -82,7 +81,6 @@ THREE.GLTFExporter.prototype = {
 			forceIndices: false,
 			forcePowerOfTwoTextures: false,
 			includeCustomExtensions: false,
-			topLevelExtensions: {},
 		};
 
 		options = Object.assign( {}, DEFAULT_OPTIONS, options );
@@ -733,29 +731,21 @@ THREE.GLTFExporter.prototype = {
 
 				ctx.drawImage( image, 0, 0, canvas.width, canvas.height );
 
-				if ( options.binary === true ) {
+				pending.push( new Promise( function ( resolve ) {
 
-					pending.push( new Promise( function ( resolve ) {
+					canvas.toBlob( function ( blob ) {
 
-						canvas.toBlob( function ( blob ) {
+						processBufferViewImage( blob ).then( function ( bufferViewIndex ) {
 
-							processBufferViewImage( blob ).then( function ( bufferViewIndex ) {
+							gltfImage.bufferView = bufferViewIndex;
 
-								gltfImage.bufferView = bufferViewIndex;
+							resolve();
 
-								resolve();
+						} );
 
-							} );
+					}, mimeType );
 
-						}, mimeType );
-
-					} ) );
-
-				} else {
-
-					gltfImage.uri = canvas.toDataURL( mimeType );
-
-				}
+				} ) );
 
 			} else {
 
@@ -1937,6 +1927,8 @@ THREE.GLTFExporter.prototype = {
 				json: outputJSON,
 				buffers: buffers,
 				cachedData: cachedData,
+				nodeMap: nodeMap,
+				skins: skins,
 			} );
 
 		} );

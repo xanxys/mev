@@ -76,7 +76,6 @@ class MevApplication {
                 vrm => {
                     console.log("VRM loaded", vrm);
                     app.vrm_ext = new VrmExtension(vrm);
-                    console.log("EXT=", vrm.model.userData.vrm);
                     scene.add(vrm.model);
 
                     console.log(vrm.textures);
