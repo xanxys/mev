@@ -1,5 +1,5 @@
 // ES6
-import {VrmExtension, serialize_vrm} from './vrm.js';
+import {parse_vrm, serialize_vrm} from './vrm.js';
 
 class MevApplication {
     constructor(width, height, canvasInsertionParent) {
@@ -65,6 +65,9 @@ class MevApplication {
                 reader.result,
                 gltf_json => {
                     console.log("gltf loaded", gltf_json);
+                    parse_vrm(gltf_json).then(vrm_objs => {
+                        vrm_objs.forEach(obj => scene.add(obj));
+                    });
                 },
                 () => { },
                 error => {
@@ -72,13 +75,13 @@ class MevApplication {
                 });
 
 
+            /*
             loader.load(reader.result,
                 vrm => {
                     console.log("VRM loaded", vrm);
-                    app.vrm_ext = new VrmExtension(vrm);
+                    
+                    vrm.model.position.set(1, 0, 0);
                     scene.add(vrm.model);
-
-                    console.log(vrm.textures);
 
                     vrm.textures.filter(e => e !== undefined).forEach(e => {
                         e.image.width = "32";
@@ -92,6 +95,7 @@ class MevApplication {
                 error => {
                     console.log("VRM loading failed", error);
                 });
+            */
         });
         reader.readAsDataURL(vrm_file);
     }

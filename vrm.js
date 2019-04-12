@@ -153,30 +153,36 @@ export function serialize_vrm(three_vrm_data, vrm_ext) {
     return gltf_and_buffers.then(attach_vrm_extension).then(serialize_glb);
 }
 
-
 /**
- * VRM extension attached to root {Object3D} userData.
- * All glTF id references are replaced by actual instance refs.
  * 
- * https://dwango.github.io/vrm/vrm_spec
+ * @param {Object} gltf object returned by THREE.GLTFLoader
+ * @return {Promise<Array<THREE.Object3D>>}
  */
-export class VrmExtension {
-    /**
-     * @param {THREE.VRM} VRM object given by THREE.VRMLoader
-     */
-    constructor(vrm) {
-        this.orig_vrm = vrm;
+export function parse_vrm(gltf) {
+    console.log("Parsing glTF as VRM", gltf);
+    
+    const data_promise = Promise.all([
+        Promise.all(
+            new Array(gltf.parser.json.nodes.length).fill().map((_, id) => gltf.parser.getDependency('node', id))),
+        Promise.all(
+            new Array(gltf.parser.json.meshes.length).fill().map((_, id) => gltf.parser.getDependency('mesh', id))),
+        Promise.all(
+            new Array((gltf.parser.json.textures || []).length).fill().map((_, id) => gltf.parser.getDependency('texture', id)))]);
 
+    return data_promise.then(value => {
+        const [nodes, meshes, textures] = value;
         const ref_to_real = new VrmExtensionMapper({
-            map_node: node_id => vrm.nodes[node_id],
-            map_mesh: mesh_id => vrm.meshes[mesh_id],
-            map_texture: tex_id => {
-                console.log("MT", tex_id);
-                return vrm.textures[tex_id];
-            }
+            map_node: id => nodes[id],
+            map_mesh: id => meshes[id],
+            map_texture: id => textures[id],
         });
-        this.vrm = ref_to_real.convert_vrm(vrm.parser.json.extensions.VRM);
-    }
+        const vrm = ref_to_real.convert_vrm(gltf.parser.json.extensions.VRM);
+        console.log(vrm);
+
+        //return gltf.parser.json.scenes[0].nodes.map(id => nodes[id]);
+    
+        return [gltf.scene];//.children;
+    });   
 }
 
 /**
@@ -274,7 +280,6 @@ class VrmExtensionMapper {
 
     _convert_material(mat) {
         const texProp = new Map();
-        console.log("_convert_mat", mat.textureProperties);
         for (let texName in mat.textureProperties) {
             texProp[texName] = this.mapper.map_texture(mat.textureProperties[texName]);
         }
