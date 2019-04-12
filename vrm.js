@@ -1,4 +1,5 @@
-"use strict"; // ES6
+// ES6
+import * as vrm_mat from './vrm-materials.js';
 
 /**
  * Serialize glTF JSON & binary buffers into a single binary (GLB format).
@@ -156,11 +157,11 @@ export function serialize_vrm(three_vrm_data, vrm_ext) {
 /**
  * 
  * @param {Object} gltf object returned by THREE.GLTFLoader
- * @return {Promise<Array<THREE.Object3D>>}
+ * @return {Promise<THREE.Object3D>}
  */
 export function parse_vrm(gltf) {
     console.log("Parsing glTF as VRM", gltf);
-    
+
     const data_promise = Promise.all([
         Promise.all(
             new Array(gltf.parser.json.nodes.length).fill().map((_, id) => gltf.parser.getDependency('node', id))),
@@ -179,10 +180,31 @@ export function parse_vrm(gltf) {
         const vrm = ref_to_real.convert_vrm(gltf.parser.json.extensions.VRM);
         console.log(vrm);
 
-        //return gltf.parser.json.scenes[0].nodes.map(id => nodes[id]);
-    
-        return [gltf.scene];//.children;
-    });   
+        gltf.parser.json.extensions.VRM.materialProperties.forEach(mat_prop => {
+            if (mat_prop.shader === "VRM_USE_GLTFSHADER") {
+                return;
+            }
+
+            // TODO: Property set morphTargets bool
+            const mat = new vrm_mat.VRMShaderMaterial({morphTargets: false, skinning: true });
+            mat.fromMaterialProperty(mat_prop, textures);
+
+            // TODO: This is inefficient. Fix.
+            gltf.scene.traverse(obj => {
+                if (obj.type !== 'Mesh' && obj.type !== 'SkinnedMesh') {
+                    return;
+                }
+                if (obj.material.name !== mat_prop.name) {
+                    return;
+                }
+                console.log(mat_prop);                
+                console.log("Fix-Material-VRM", mat, "->", obj);
+                obj.material = mat;
+            });
+        });
+
+        return gltf.scene;
+    });
 }
 
 /**
