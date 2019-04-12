@@ -81,7 +81,8 @@ THREE.GLTFExporter.prototype = {
 			animations: [],
 			forceIndices: false,
 			forcePowerOfTwoTextures: false,
-			includeCustomExtensions: false
+			includeCustomExtensions: false,
+			topLevelExtensions: {},
 		};
 
 		options = Object.assign( {}, DEFAULT_OPTIONS, options );
@@ -1947,9 +1948,13 @@ THREE.GLTFExporter.prototype = {
 			// Merge buffers.
 			var blob = new Blob( buffers, { type: 'application/octet-stream' } );
 
+			// Set top-level extensions.
+			if ( Object.keys(options.topLevelExtensions).length > 0 ) outputJSON.extensions = options.topLevelExtensions;
+
 			// Declare extensions.
-			var extensionsUsedList = Object.keys( extensionsUsed );
-			if ( extensionsUsedList.length > 0 ) outputJSON.extensionsUsed = extensionsUsedList;
+			var extensionsUsedSet =
+				new Set([...Object.keys( extensionsUsed ), ...Object.keys(options.topLevelExtensions)]);
+			if ( extensionsUsedSet.size > 0 ) outputJSON.extensionsUsed = [...extensionsUsedSet];
 
 			if ( outputJSON.buffers && outputJSON.buffers.length > 0 ) {
 

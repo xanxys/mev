@@ -2,7 +2,7 @@
 
 /**
  * @return {Promise<ArrayBuffer>} vrm (.glb format) blob
-*/
+ */
 function serialize_vrm(three_vrm_data) {
     // TODO: Create proper VRM serializer.
 
@@ -13,15 +13,116 @@ function serialize_vrm(three_vrm_data) {
     const options = {
         binary: true,
         includeCustomExtensions: true,
+        topLevelExtensions: {
+            VRM: three_vrm_data.parser.json.extensions.VRM,
+        }
     };
-    console.log(three_vrm_data);
-    three_vrm_data.model.userData.gltfExtensions = three_vrm_data.parser.json.extensions;
+
+    const scene = new THREE.Scene();
+    // We push directly to children instead of calling `add` to prevent
+    // modify the .parent and break its original scene and hierarchy
+    scene.children.push(three_vrm_data.model);
     return new Promise((resolve, reject) => {
-        exporter.parse(three_vrm_data.model, gltf => {
+        exporter.parse(scene, gltf => {
             console.log(gltf);
             resolve(gltf);
         }, options);
     });
+}
+
+/**
+ * VRM extension attached to root {Object3D} userData.
+ * All glTF id references are replaced by actual instance refs.
+ * 
+ * https://dwango.github.io/vrm/vrm_spec
+ */
+class VrmExtension {
+    /**
+     * @param {THREE.VRM} VRM object given by THREE.VRMLoader
+     */
+    constructor(vrm) {
+        console.log("Parsing VRM extension");
+        this.vrm = vrm;
+        const ext = vrm.parser.json.extensions.VRM;
+
+        // TODO: Write parser
+        this.blendShapeMaster = this._convert_blendshape(ext.blendShapeMaster);
+        this.humanoid = this._convert_humanoid(ext.humanoid);
+        this.firstPerson = this._convert_firstperson(ext.firstPerson);
+        this.materialProperties = ext.materialProperties;
+        this.meta = ext.meta;
+        this.secondaryAnimation = {};
+    }
+
+    _convert_blendshape(blendshape) {
+        return {
+            blendShapeGroups:
+                blendshape.blendShapeGroups.map(group => this._convert_blendshape_group(group)),
+        };
+    }
+
+    _convert_blendshape_group(group) {
+        return {
+            name: group.name,
+            presetName: group.presetName,
+            binds: group.binds.map(bind => this._convert_blendshape_bind(bind)),
+            materialValues: group.materialValues,
+        };
+    }
+
+    _convert_blendshape_bind(bind) {
+        return {
+            mesh: this.vrm.meshes[bind.mesh],
+            index: bind.index, // (probably) morph target index of the mesh.
+            weight: bind.weight,
+        };
+    }
+
+    // https://github.com/dwango/UniVRM/blob/master/specification/0.0/schema/vrm.humanoid.schema.json
+    _convert_humanoid(humanoid) {
+        return {
+            humanBones: humanoid.humanBones.map(bone => this._convert_humanoid_bone(bone)),
+            armStretch: humanoid.armStretch,
+            legStretch: humanoid.legStretch,
+            upperArmTwist: humanoid.upperArmTwist,
+            lowerArmTwist: humanoid.lowerArmTwist,
+            upperLegTwist: humanoid.upperLegTwist,
+            lowerLegTwist: humanoid.lowerLegTwist,
+            feetSpacing: humanoid.feetSpacing,
+            hasTranslationDoF: humanoid.hasTranslationDoF, // is this ever true?
+        };
+    }
+
+    _convert_humanoid_bone(bone) {
+        return {
+            bone: bone.bone,
+            node: this.vrm.nodes[bone.node],
+            useDefaultValues: bone.useDefaultValues,
+            min: bone.min,
+            max: bone.max,
+            center: bone.center,
+            axisLength: bone.axisLength,
+        };
+    }
+
+    _convert_firstperson(firstperson) {
+        return {
+            firstPersonBone: this.vrm.nodes[firstperson.firstPersonBone],
+            firstPersonBoneOffset: firstperson.firstPersonBoneOffset,
+            meshAnnotations: firstperson.meshAnnotations.map(annot => this._convert_firstperson_meshannotation(annot)),
+            lookAtTypeName: firstperson.lookAtTypeName,
+            lookAtHorizontalInner: firstperson.lookAtHorizontalInner,
+            lookAtVerticalDown: firstperson.lookAtVerticalDown,
+            lookAtVerticalUp: firstperson.lookAtVerticalUp,
+        };
+    }
+
+    _convert_firstperson_meshannotation(annot) {
+        return {
+            mesh: this.vrm.meshes[annot.mesh],
+            firstPersonFlag: annot.firstPersonFlag,
+        };
+    }
 }
 
 class MevApplication {
@@ -66,6 +167,7 @@ class MevApplication {
         });
     }
 
+    /** Executes and renders single frame and request next frame. */
     animate() {
         this.controls.update();
         this.renderer.render(this.scene, this.camera);
@@ -81,9 +183,24 @@ class MevApplication {
         const app = this;
         const scene = this.scene;
         reader.addEventListener('load', () => {
+            const gltf_loader = new THREE.GLTFLoader();
+
+            gltf_loader.load(
+                reader.result,
+                gltf_json => {
+                    console.log("gltf loaded", gltf_json);
+                },
+                () => { },
+                error => {
+                    console.log("gltf load failed", error);
+                });
+
+
             loader.load(reader.result,
                 vrm => {
                     console.log("VRM loaded", vrm);
+                    vrm.model.userData.vrm = new VrmExtension(vrm);
+                    console.log("EXT=", vrm.model.userData.vrm);
                     scene.add(vrm.model);
 
                     console.log(vrm.textures);
@@ -104,9 +221,11 @@ class MevApplication {
         reader.readAsDataURL(vrm_file);
     }
 
-    // Create circular stage with:
-    // * normal pointing Y+ ("up" in VRM spec & me/v app)
-    // * notch at Z-. ("front" in VRM spec)
+    /**
+     * Creates circular stage with:
+     * - normal pointing Y+ ("up" in VRM spec & me/v app)
+     * - notch at Z-. ("front" in VRM spec)
+     */
     _create_stage() {
         const stageGeom = new THREE.CircleBufferGeometry(1, 64);
         const stageMat = new THREE.MeshBasicMaterial({ color: "white" });
