@@ -1,19 +1,47 @@
 <!DOCTYPE html>
-<html>
+<html lang="ja">
 
 <head>
+  <meta chartset="utf-8">
   <title>me/v</title>
+  <link rel="stylesheet" href="./mev.css" type="text/css">
 </head>
 
 <body style="margin:0; overflow:hidden">
-  <div style="position: absolute; left:8px; top: 8px; background-color: white; width: 240px" id="vue_menu">
-    Open vrm File<br />
+  <div style="position: absolute; left:30%; top: 200px; width:40%" id="vue_start_dialog">
+    <h2>VRMかFBXを読み込んで編集開始</h2>
+
+    <section style="text-align: center">
+      <div id="dropzone"
+        style="height: 100px; width: 400px; border-style:dotted; border-color: grey; border-width: 3px; text-align: center; padding-top: 24px"
+        v-bind:style="{backgroundColor: bg_color}"
+        @dragover="file_dragover"
+        @dragleave="file_dragleave"
+        @drop="file_drop">
+        <img src="ui_asset/baseline-open_in_browser-24px.svg" width="48px" height="48px" style="filter:contrast(10%)">
+        <br />
+        ファイルをドロップする
+      </div>
+
+      または<br />
+      <input type="file" @change="file_select"></input>
+    </section>
+
+    <section>
+      <span class="text-aux">※編集はすべてブラウザ内で行われ、読み込んだデータがアップロードされることはありません。</span>
+    </section>
+  </div>
+
+  <div style="position: absolute; left:8px; top: 8px; width: 240px" id="vue_menu">
+    <h2>VRMを開く</h2>
     <input type="file" @change="change_file"></input>
     <br />
-    Textures<br />
+    <h2>テクスチャ</h2>
     <div id="textures"></div>
 
-    <button @click="download_vrm">Download VRM</button>
+    <h2>完成したVRMをダウンロード</h2>
+    サイズ: 123131B<br />
+    <button @click="download_vrm">ダウンロード</button>
 
   </div>
 

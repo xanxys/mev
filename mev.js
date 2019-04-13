@@ -1,6 +1,9 @@
 // ES6
 import { parse_vrm, serialize_vrm } from './vrm.js';
 
+/**
+ * Handle main editor UI & all state. Start dialog is NOT part of this class.
+ */
 class MevApplication {
     constructor(width, height, canvasInsertionParent) {
         // Three.js canvas
@@ -19,7 +22,7 @@ class MevApplication {
         this.renderer.antialias = true;
         canvasInsertionParent.appendChild(this.renderer.domElement);
 
-        this.renderer.setClearColor(new THREE.Color("#ddd"));
+        this.renderer.setClearColor(new THREE.Color("#f5f5f5"));
         this.scene.add(this._create_stage());
         this.scene.add(new THREE.DirectionalLight(0xffffff, 1.0));
 
@@ -103,6 +106,42 @@ class MevApplication {
 
 function main() {
     const app = new MevApplication(window.innerWidth, window.innerHeight, document.body);
+
+    const start_config = {
+        initial_file: null
+    };
+    const start_dialog = new Vue({
+        el: "#vue_start_dialog",
+        data: {
+            bg_color: "transparent",
+        },
+        methods: {
+            file_dragover: function (event) {
+                event.preventDefault();
+                event.dataTransfer.dropEffect = 'copy';
+                this.bg_color = "#f5f5f5";
+            },
+            file_dragleave: function (event) {
+                event.preventDefault();
+                this.bg_color = "transparent";
+            },
+            file_drop: function (event) {
+                event.preventDefault();
+                this.bg_color = "transparent";
+                this._set_file_and_exit(event.dataTransfer.files[0]);
+            },
+            file_select: function (event) {
+                this._set_file_and_exit(event.srcElement.files[0]);
+            },
+            _set_file_and_exit: function (file) {
+                start_config.initial_file = file;
+                this.$destroy();
+                document.getElementById("vue_start_dialog").remove();
+                app.load_vrm(file);
+            },
+        }
+    });
+
     app.animate();
 }
 
