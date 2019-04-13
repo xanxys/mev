@@ -38,7 +38,7 @@ class MevApplication {
                 },
                 download_vrm: function (event) {
                     console.log("Download requested");
-                    serialize_vrm(app.vrm, app.vrm_ext).then(glb_buffer => {
+                    serialize_vrm(app.vrm_root).then(glb_buffer => {
                         saveAs(new Blob([glb_buffer], { type: "application/octet-stream" }), "test.vrm");
                     });
                 },
@@ -70,35 +70,13 @@ class MevApplication {
                     console.log("gltf loaded", gltf_json);
                     parse_vrm(gltf_json).then(vrm_obj => {
                         scene.add(vrm_obj);
+                        app.vrm_root = vrm_obj;
                     });
                 },
                 () => { },
                 error => {
                     console.log("gltf load failed", error);
                 });
-
-            loader.load(reader.result,
-                vrm => {
-                    console.log("VRM loaded", vrm);
-
-                    vrm.model.position.set(1, 0, 0);
-                    //scene.add(vrm.model);
-
-                    /*
-                    vrm.textures.filter(e => e !== undefined).forEach(e => {
-                        e.image.width = "32";
-                        document.getElementById("textures").appendChild(e.image);
-                    });
-                    */
-
-                    //app.vrm = vrm;
-                },
-                progress => {
-                },
-                error => {
-                    console.log("VRM loading failed", error);
-                });
-
         });
         reader.readAsDataURL(vrm_file);
     }

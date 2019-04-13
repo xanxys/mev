@@ -89,18 +89,19 @@ function serialize_glb(obj) {
 }
 
 /**
+ * @param {THREE.Object3D} vrm_root
  * @return {Promise<ArrayBuffer>} vrm (.glb format) blob
  */
-export function serialize_vrm(three_vrm_data, vrm_ext) {
+export function serialize_vrm(vrm_root) {
     const exporter = new THREE.GLTFExporter();
     const options = {
         includeCustomExtensions: true,
     };
 
     const scene = new THREE.Scene();
-    // We push directly to children instead of calling `add` to prevent
+    // Push directly to children instead of calling `add` to prevent
     // modify the .parent and break its original scene and hierarchy
-    scene.children.push(three_vrm_data.model);
+    scene.children.push(vrm_root);
     const gltf_and_buffers = new Promise((resolve, reject) => {
         exporter.parse(scene, gltf => {
             console.log(gltf);
@@ -108,18 +109,18 @@ export function serialize_vrm(three_vrm_data, vrm_ext) {
         }, options);
     });
 
-    function attach_vrm_extension(obj) {
-        console.log("Attaching VRM", vrm_ext, "to", obj);
-        if (obj.json.extensionsUsed === undefined) {
-            obj.json.extensionsUsed = [];
+    function attach_vrm_extension(gltf_result) {
+        console.log("Attaching VRM", vrm_root.vrm_ext, "to", gltf_result);
+        if (gltf_result.json.extensionsUsed === undefined) {
+            gltf_result.json.extensionsUsed = [];
         }
-        if (obj.json.extensions === undefined) {
-            obj.json.extensions = {};
+        if (gltf_result.json.extensions === undefined) {
+            gltf_result.json.extensions = {};
         }
 
         const ref_to_id = new VrmExtensionMapper({
             map_node: node_ref => {
-                const node_id = obj.nodeMap.get(node_ref);
+                const node_id = gltf_result.nodeMap.get(node_ref);
                 if (node_id === undefined) {
                     console.warn("map_node failed (not found in nodeMap)", node_ref);
                     return 0;
@@ -129,7 +130,7 @@ export function serialize_vrm(three_vrm_data, vrm_ext) {
             },
             map_mesh: mesh_ref => {
                 // Looks suspicious. Why skins instead of meshes?
-                const skin_id = obj.skins.findIndex(e => e === mesh_ref[0]);
+                const skin_id = gltf_result.skins.findIndex(e => e === mesh_ref[0]);
                 if (skin_id < 0) {
                     console.warn("map_node failed (not found in skins)", mesh_ref);
                     return 0;
@@ -143,12 +144,12 @@ export function serialize_vrm(three_vrm_data, vrm_ext) {
             },
         });
 
-        const ext_with_ids = ref_to_id.convert_vrm(vrm_ext.vrm);
+        const ext_with_ids = ref_to_id.convert_vrm(vrm_root.vrm_ext);
         ext_with_ids["exporterVersion"] = "me/v";
 
-        obj.json.extensions["VRM"] = ext_with_ids;
-        obj.json.extensionsUsed = Array.from(new Set(["VRM", ...obj.json.extensionsUsed]));
-        return obj;
+        gltf_result.json.extensions["VRM"] = ext_with_ids;
+        gltf_result.json.extensionsUsed = Array.from(new Set(["VRM", ...gltf_result.json.extensionsUsed]));
+        return gltf_result;
     }
 
     return gltf_and_buffers.then(attach_vrm_extension).then(serialize_glb);
@@ -157,7 +158,7 @@ export function serialize_vrm(three_vrm_data, vrm_ext) {
 /**
  * 
  * @param {Object} gltf object returned by THREE.GLTFLoader
- * @return {Promise<THREE.Object3D>}
+ * @return {Promise<THREE.Object3D>} will have .vrm_ext field.
  */
 export function parse_vrm(gltf) {
     console.log("Parsing glTF as VRM", gltf);
@@ -203,6 +204,7 @@ export function parse_vrm(gltf) {
             });
         });
 
+        gltf.scene.vrm_ext = vrm;
         return gltf.scene;
     });
 }
