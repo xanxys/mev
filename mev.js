@@ -29,9 +29,11 @@ class MevApplication {
         // Overlay UI
         const app = this;
         const scene = this.scene;
-        const vm = new Vue({
+        this.vm = new Vue({
             el: '#vue_menu',
             data: {
+                final_vrm_ready: false,
+                final_vrm_size_approx: "",
             },
             methods: {
                 change_file: function (event) {
@@ -73,6 +75,8 @@ class MevApplication {
                     parse_vrm(gltf_json).then(vrm_obj => {
                         scene.add(vrm_obj);
                         app.vrm_root = vrm_obj;
+                        app.vm.final_vrm_ready = true;
+                        app.recalculate_final_size();
                     });
                 },
                 () => { },
@@ -81,6 +85,16 @@ class MevApplication {
                 });
         });
         reader.readAsDataURL(vrm_file);
+    }
+
+    recalculate_final_size() {
+        if (!this.vm.final_vrm_ready) {
+            return;
+        }
+        
+        serialize_vrm(this.vrm_root).then(glb_buffer => {
+            this.vm.final_vrm_size_approx = (glb_buffer.byteLength * 1e-6).toFixed(1) + "MB";
+        });
     }
 
     /**
