@@ -12,6 +12,9 @@ class MevApplication {
         this.controls = new THREE.OrbitControls(this.camera);
 
         this.renderer = new THREE.WebGLRenderer();
+        // Recommended gamma values from https://threejs.org/docs/#examples/loaders/GLTFLoader
+        this.renderer.gammaOutput = true;  // If set, then it expects that all textures and colors need to be outputted in premultiplied gamma.
+        this.renderer.gammaFactor = 2.2;
         this.renderer.setSize(width, height);
         this.renderer.antialias = true;
         canvasInsertionParent.appendChild(this.renderer.domElement);
