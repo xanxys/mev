@@ -55,7 +55,6 @@ class MevApplication {
     }
 
     load_vrm(vrm_file) {
-        const loader = new THREE.VRMLoader();
         // three-vrm currently doesn't have .parse() method, need to convert to data URL...
         // (inefficient)
         const reader = new FileReader();
