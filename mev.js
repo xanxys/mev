@@ -75,13 +75,16 @@ class MevApplication {
                         const bb_size = new THREE.Box3().setFromObject(fbx).getSize();
                         const max_len = Math.max(bb_size.x, bb_size.y, bb_size.z);
                         // heuristics: Try to fit in 0.1m~9.9m. (=log10(max_len * K) should be 0.XXX)
-                        const scale_factor = Math.pow(10, -Math.floor(Math.log10(max_len)));
+                        // const scale_factor = Math.pow(10, -Math.floor(Math.log10(max_len)));
+                        //console.log("FBX:size_estimator: max_len=", max_len, "scale_factor=", scale_factor);
+                        const scale_factor = 0.01;
                         fbx.scale.set(scale_factor, scale_factor, scale_factor);
                         fbx.rotateOnWorldAxis(new THREE.Vector3(0, 1, 0), Math.PI);
 
                         // Fix-up materials
                         fbx.traverse(obj => {
                             if (obj.type === 'SkinnedMesh' || obj.type === 'Mesh') {
+                                console.log("FBX-Fix-Material", obj.material);
                                 if (obj.material instanceof Array) {
                                     obj.material = obj.material.map(m => new THREE.MeshLambertMaterial());
                                 } else {
@@ -90,6 +93,11 @@ class MevApplication {
                             }
                         });
                         scene.add(fbx);
+                        app.vrm_root = fbx;
+                        app.vm.final_vrm_ready = true;
+                        setTimeout(() => {
+                            app.recalculate_final_size();
+                        }, 100);
                     }
                 );
                 return;
@@ -124,16 +132,17 @@ class MevApplication {
         const stats = { num_tris: 0 };
         this.vrm_root.traverse(obj => {
             if (obj.type === 'Mesh' || obj.type === 'SkinnedMesh') {
-                if (obj.geometry.index.count % 3 != 0) {
-                    console.warn("Unexpected GeometryBuffer format. index buffer size % 3 != 0. Tris count might be incorrect");
+                const num_verts = obj.geometry.index === null ? obj.geometry.attributes.position.count : obj.geometry.index.count;
+                if (num_verts % 3 != 0) {
+                    console.warn("Unexpected GeometryBuffer format. Seems to contain non-triangles");
                 }
-                stats.num_tris += Math.floor(obj.geometry.index.count / 3);
+                stats.num_tris += Math.floor(num_verts / 3);
             }
         });
+        this.vm.final_vrm_tris = "△" + stats.num_tris;
 
         serialize_vrm(this.vrm_root).then(glb_buffer => {
             this.vm.final_vrm_size_approx = (glb_buffer.byteLength * 1e-6).toFixed(1) + "MB";
-            this.vm.final_vrm_tris = "△" + stats.num_tris;
         });
     }
 

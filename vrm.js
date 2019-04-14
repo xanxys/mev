@@ -89,7 +89,7 @@ function serialize_glb(obj) {
 }
 
 /**
- * @param {THREE.Object3D} vrm_root
+ * @param {THREE.Object3D} vrm_root, must have .vrm_ext field
  * @return {Promise<ArrayBuffer>} vrm (.glb format) blob
  */
 export function serialize_vrm(vrm_root) {
@@ -187,7 +187,7 @@ export function parse_vrm(gltf) {
             }
 
             // TODO: Property set morphTargets bool
-            const mat = new vrm_mat.VRMShaderMaterial({morphTargets: false, skinning: true });
+            const mat = new vrm_mat.VRMShaderMaterial({ morphTargets: false, skinning: true });
             mat.fromMaterialProperty(mat_prop, textures);
 
             // TODO: This is inefficient. Fix.
@@ -198,7 +198,7 @@ export function parse_vrm(gltf) {
                 if (obj.material.name !== mat_prop.name) {
                     return;
                 }
-                console.log(mat_prop);                
+                console.log(mat_prop);
                 console.log("Fix-Material-VRM", mat, "->", obj);
                 obj.material = mat;
             });
