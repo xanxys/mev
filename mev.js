@@ -33,6 +33,9 @@ class MevApplication {
         this.vm = new Vue({
             el: '#vue_menu',
             data: {
+                avatar_height: null,
+                avatar_name: "",
+                parts: [],
                 final_vrm_ready: false,
                 final_vrm_size_approx: "",
                 final_vrm_tris: "",
@@ -59,6 +62,7 @@ class MevApplication {
     // TODO: Rename / think whether we should separate .fbx loader function/UI.
     load_vrm(vrm_file) {
         const is_fbx = vrm_file.name.toLowerCase().endsWith('.fbx');
+        this.vm.avatar_name = vrm_file.name;
 
         // three-vrm currently doesn't have .parse() method, need to convert to data URL...
         // (inefficient)
@@ -140,6 +144,11 @@ class MevApplication {
             }
         });
         this.vm.final_vrm_tris = "△" + stats.num_tris;
+        this.vm.avatar_height = (new THREE.Box3().setFromObject(this.vrm_root).getSize().y).toFixed(2) + "m";
+
+        this.vm.parts =
+            this.vrm_root.children.filter(obj => obj.type === 'Mesh' || obj.type === 'SkinnedMesh').map(mesh => { return { name: mesh.name }; });
+        console.log(this.vrm_root.children.filter(obj => obj.type === 'Mesh' || obj.type === 'SkinnedMesh'));
 
         serialize_vrm(this.vrm_root).then(glb_buffer => {
             this.vm.final_vrm_size_approx = (glb_buffer.byteLength * 1e-6).toFixed(1) + "MB";

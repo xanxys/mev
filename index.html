@@ -31,19 +31,23 @@
   </div>
 
   <div style="position: absolute; left:8px; top: 8px; width: 240px" id="vue_menu">
-    <h2>メッシュ</h2>
-    <div id="meshes"></div>
+    <h1>{{avatar_name}}</h1>
+    <section>
+      <h2>身体</h2>
+      <div class="normal-text">身長: {{avatar_height}}</div>
+    </section>
 
-    <h2>マテリアル</h2>
-    <div id="materials"></div>
-
-    <h2>テクスチャ</h2>
-    <div id="textures"></div>
+    <section>
+      <h2>パーツ</h2>
+      <div v-for="part in parts">
+        {{part.name}}
+      </div>
+    </section>
 
     <section v-if="final_vrm_ready">
-      <h2>完成したVRMをダウンロード</h2>
-      サイズ: {{final_vrm_size_approx}}<br />
-      ポリゴン: {{final_vrm_tris}}<br />
+      <h2>VRMに出力</h2>
+      <div class="normal-text">サイズ: {{final_vrm_size_approx}}</div>
+      <div class="normal-text">ポリゴン: {{final_vrm_tris}}</div>
       <button @click="download_vrm">ダウンロード</button>
     </section>
   </div>
