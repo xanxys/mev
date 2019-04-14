@@ -34,13 +34,9 @@ class MevApplication {
             data: {
                 final_vrm_ready: false,
                 final_vrm_size_approx: "",
+                final_vrm_tris: "",
             },
             methods: {
-                change_file: function (event) {
-                    console.log(event.srcElement.files[0]);
-                    const vrmFile = event.srcElement.files[0];
-                    app.load_vrm(vrmFile);
-                },
                 download_vrm: function (event) {
                     console.log("Download requested");
                     serialize_vrm(app.vrm_root).then(glb_buffer => {
@@ -91,9 +87,20 @@ class MevApplication {
         if (!this.vm.final_vrm_ready) {
             return;
         }
+
+        const stats = {num_tris: 0};
+        this.vrm_root.traverse(obj => {
+            if (obj.type === 'Mesh' || obj.type === 'SkinnedMesh') {
+                if (obj.geometry.index.count % 3 != 0) {
+                    console.warn("Unexpected GeometryBuffer format. index buffer size % 3 != 0. Tris count might be incorrect");
+                }
+                stats.num_tris += Math.floor(obj.geometry.index.count / 3);
+            }
+        });
         
         serialize_vrm(this.vrm_root).then(glb_buffer => {
             this.vm.final_vrm_size_approx = (glb_buffer.byteLength * 1e-6).toFixed(1) + "MB";
+            this.vm.final_vrm_tris = "△" + stats.num_tris;
         });
     }
 

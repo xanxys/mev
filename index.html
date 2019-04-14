@@ -31,15 +31,16 @@
   </div>
 
   <div style="position: absolute; left:8px; top: 8px; width: 240px" id="vue_menu">
-    <h2>VRMを開く</h2>
-    <input type="file" @change="change_file"></input>
-    <br />
+    <h2>メッシュ</h2>
+    <div id="meshes"></div>
+
     <h2>テクスチャ</h2>
     <div id="textures"></div>
 
     <section v-if="final_vrm_ready">
       <h2>完成したVRMをダウンロード</h2>
       サイズ: {{final_vrm_size_approx}}<br />
+      ポリゴン: {{final_vrm_tris}}<br />
       <button @click="download_vrm">ダウンロード</button>
     </section>
   </div>
