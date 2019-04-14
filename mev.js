@@ -1,5 +1,6 @@
 // ES6
 import { parse_vrm, serialize_vrm } from './vrm.js';
+import { vrmMaterials } from './vrm-materials.js';
 
 /**
  * Converts {THREE.Object3D} into human-readable object tree.
@@ -155,9 +156,11 @@ class MevApplication {
         function traverse(o) {
             const p0 = o.getWorldPosition(new THREE.Vector3());
             o.children.forEach(c => {
-                const p1 = c.getWorldPosition(new THREE.Vector3());
-                geom.vertices.push(p0);
-                geom.vertices.push(p1);
+                if (c.type === 'Bone') {
+                    const p1 = c.getWorldPosition(new THREE.Vector3());
+                    geom.vertices.push(p0);
+                    geom.vertices.push(p1);
+                }
                 traverse(c);
             });
         }
@@ -186,8 +189,12 @@ class MevApplication {
         this.vm.avatar_height = (new THREE.Box3().setFromObject(this.vrm_root).getSize().y).toFixed(2) + "m";
 
         this.vm.parts =
-            this.vrm_root.children.filter(obj => obj.type === 'Mesh' || obj.type === 'SkinnedMesh').map(mesh => { return { name: mesh.name }; });
-        console.log(this.vrm_root.children.filter(obj => obj.type === 'Mesh' || obj.type === 'SkinnedMesh'));
+            this.vrm_root.children
+                .filter(obj => obj.type === 'Mesh' || obj.type === 'SkinnedMesh')
+                .map(mesh => {
+
+                    return { name: mesh.name, shaderName: mesh.material.shaderName };
+                });
 
         serialize_vrm(this.vrm_root).then(glb_buffer => {
             this.vm.final_vrm_size_approx = (glb_buffer.byteLength * 1e-6).toFixed(1) + "MB";
