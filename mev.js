@@ -55,13 +55,38 @@ class MevApplication {
         requestAnimationFrame(() => this.animate());
     }
 
+    // TODO: Rename / think whether we should separate .fbx loader function/UI.
     load_vrm(vrm_file) {
+        const is_fbx = vrm_file.name.toLowerCase().endsWith('.fbx');
+
         // three-vrm currently doesn't have .parse() method, need to convert to data URL...
         // (inefficient)
         const reader = new FileReader();
         const app = this;
         const scene = this.scene;
         reader.addEventListener('load', () => {
+            if (is_fbx) {
+                const fbx_loader = new THREE.FBXLoader();
+                fbx_loader.load(
+                    reader.result,
+                    fbx => {
+                        console.log("FBX loaded", fbx);
+                        const bb_size = new THREE.Box3().setFromObject(fbx).getSize();
+                        const max_len = Math.max(bb_size.x, bb_size.y, bb_size.z);
+                        // heuristics: Try to fit in 0.1m~9.9m. (=log10(max_len * K) should be 0.XXX)
+                        const scale_factor = Math.pow(10, -Math.floor(Math.log10(max_len)));
+                        fbx.scale.set(scale_factor, scale_factor, scale_factor);
+
+                        
+
+                        
+                        
+                        scene.add(fbx);
+                    }
+                );
+                return;
+            }
+
             const gltf_loader = new THREE.GLTFLoader();
 
             gltf_loader.load(
