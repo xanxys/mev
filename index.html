@@ -14,15 +14,14 @@
     <section style="text-align: center">
       <div id="dropzone"
         style="height: 100px; width: 400px; border-style:dotted; border-color: grey; border-width: 3px; text-align: center; padding-top: 24px"
-        v-bind:style="{backgroundColor: bg_color}" @dragover="file_dragover" @dragleave="file_dragleave"
-        @drop="file_drop">
+        v-bind:style="{backgroundColor: bgColor}" @dragover="fileDragover" @dragleave="fileDragleave" @drop="fileDrop">
         <img src="ui_asset/baseline-open_in_browser-24px.svg" width="48px" height="48px" style="filter:contrast(10%)">
         <br />
         ファイルをドロップする
       </div>
 
       または<br />
-      <input type="file" @change="file_select"></input>
+      <input type="file" @change="fileSelect"></input>
     </section>
 
     <section>
@@ -31,10 +30,10 @@
   </div>
 
   <div style="position: absolute; left:8px; top: 8px; width: 240px" id="vue_menu">
-    <h1>{{avatar_name}}</h1>
+    <h1>{{avatarName}}</h1>
     <section>
       <h2>身体</h2>
-      <div class="normal-text">身長: {{avatar_height}}</div>
+      <div class="normal-text">身長: {{avatarHeight}}</div>
     </section>
 
     <section>
@@ -44,11 +43,11 @@
       </div>
     </section>
 
-    <section v-if="final_vrm_ready">
+    <section v-if="finalVrmReady">
       <h2>VRMに出力</h2>
-      <div class="normal-text">サイズ: {{final_vrm_size_approx}}</div>
-      <div class="normal-text">ポリゴン: {{final_vrm_tris}}</div>
-      <button @click="download_vrm">ダウンロード</button>
+      <div class="normal-text">サイズ: {{finalVrmSizeApprox}}</div>
+      <div class="normal-text">ポリゴン: {{finalVrmTris}}</div>
+      <button @click="downloadVrm">ダウンロード</button>
     </section>
   </div>
 

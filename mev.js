@@ -1,11 +1,11 @@
 // ES6
-import { parse_vrm, serialize_vrm } from './vrm.js';
+import { parseVrm, serializeVrm } from './vrm.js';
 import { vrmMaterials } from './vrm-materials.js';
 
 /**
  * Converts {THREE.Object3D} into human-readable object tree.
  */
-function object_to_tree_debug(obj) {
+function objectToTreeDebug(obj) {
     function convert_node(o) {
         return {
             name: o.name,
@@ -48,18 +48,18 @@ class MevApplication {
         this.vm = new Vue({
             el: '#vue_menu',
             data: {
-                avatar_height: null,
-                avatar_name: "",
+                avatarHeight: null,
+                avatarName: "",
                 parts: [],
-                final_vrm_ready: false,
-                final_vrm_size_approx: "",
-                final_vrm_tris: "",
+                finalVrmReady: false,
+                finalVrmSizeApprox: "",
+                finalVrmTris: "",
             },
             methods: {
-                download_vrm: function (event) {
+                downloadVrm: function (event) {
                     console.log("Download requested");
-                    serialize_vrm(app.vrm_root).then(glb_buffer => {
-                        saveAs(new Blob([glb_buffer], { type: "application/octet-stream" }), "test.vrm");
+                    serializeVrm(app.vrmRoot).then(glbBuffer => {
+                        saveAs(new Blob([glbBuffer], { type: "application/octet-stream" }), "test.vrm");
                     });
                 },
             },
@@ -75,9 +75,9 @@ class MevApplication {
     }
 
     // TODO: Rename / think whether we should separate .fbx loader function/UI.
-    load_vrm(vrm_file) {
-        const is_fbx = vrm_file.name.toLowerCase().endsWith('.fbx');
-        this.vm.avatar_name = vrm_file.name;
+    loadVrm(vrmFile) {
+        const isFbx = vrmFile.name.toLowerCase().endsWith('.fbx');
+        this.vm.avatarName = vrmFile.name;
 
         // three-vrm currently doesn't have .parse() method, need to convert to data URL...
         // (inefficient)
@@ -85,9 +85,9 @@ class MevApplication {
         const app = this;
         const scene = this.scene;
         reader.addEventListener('load', () => {
-            if (is_fbx) {
-                const fbx_loader = new THREE.FBXLoader();
-                fbx_loader.load(
+            if (isFbx) {
+                const fbxLoader = new THREE.FBXLoader();
+                fbxLoader.load(
                     reader.result,
                     fbx => {
                         console.log("FBX loaded", fbx);
@@ -111,32 +111,32 @@ class MevApplication {
                                 }
                             }
                         });
-                        console.log("FBX-tree", object_to_tree_debug(fbx));
+                        console.log("FBX-tree", objectToTreeDebug(fbx));
                         scene.add(fbx);
-                        app.vrm_root = fbx;
-                        app.vm.final_vrm_ready = true;
+                        app.vrmRoot = fbx;
+                        app.vm.finalVrmReady = true;
                         setTimeout(() => {
-                            scene.add(app.create_tree_visualizer(fbx));
-                            app.recalculate_final_size();
+                            scene.add(app.createTreeVisualizer(fbx));
+                            app.recalculateFinalSize();
                         }, 100);
                     }
                 );
                 return;
             }
 
-            const gltf_loader = new THREE.GLTFLoader();
+            const gltfLoader = new THREE.GLTFLoader();
 
-            gltf_loader.load(
+            gltfLoader.load(
                 reader.result,
-                gltf_json => {
-                    console.log("gltf loaded", gltf_json);
-                    parse_vrm(gltf_json).then(vrm_obj => {
-                        console.log("VRM-tree", object_to_tree_debug(vrm_obj));
-                        scene.add(vrm_obj);
-                        scene.add(app.create_tree_visualizer(vrm_obj));
-                        app.vrm_root = vrm_obj;
-                        app.vm.final_vrm_ready = true;
-                        app.recalculate_final_size();
+                gltfJson => {
+                    console.log("gltf loaded", gltfJson);
+                    parseVrm(gltfJson).then(vrmObj => {
+                        console.log("VRM-tree", objectToTreeDebug(vrmObj));
+                        scene.add(vrmObj);
+                        scene.add(app.createTreeVisualizer(vrmObj));
+                        app.vrmRoot = vrmObj;
+                        app.vm.finalVrmReady = true;
+                        app.recalculateFinalSize();
                     });
                 },
                 () => { },
@@ -144,14 +144,14 @@ class MevApplication {
                     console.log("gltf load failed", error);
                 });
         });
-        reader.readAsDataURL(vrm_file);
+        reader.readAsDataURL(vrmFile);
     }
 
     /**
      * Creates visual tree that connects parent.position & child.position for all parent-child pairs.
      * Useful for bone visualization.
      */
-    create_tree_visualizer(obj) {
+    createTreeVisualizer(obj) {
         const geom = new THREE.Geometry();
         function traverse(o) {
             const p0 = o.getWorldPosition(new THREE.Vector3());
@@ -170,34 +170,33 @@ class MevApplication {
         return new THREE.LineSegments(geom, mat);
     }
 
-    recalculate_final_size() {
-        if (!this.vm.final_vrm_ready) {
+    recalculateFinalSize() {
+        if (!this.vm.finalVrmReady) {
             return;
         }
 
-        const stats = { num_tris: 0 };
-        this.vrm_root.traverse(obj => {
+        const stats = { numTris: 0 };
+        this.vrmRoot.traverse(obj => {
             if (obj.type === 'Mesh' || obj.type === 'SkinnedMesh') {
-                const num_verts = obj.geometry.index === null ? obj.geometry.attributes.position.count : obj.geometry.index.count;
-                if (num_verts % 3 != 0) {
+                const numVerts = obj.geometry.index === null ? obj.geometry.attributes.position.count : obj.geometry.index.count;
+                if (numVerts % 3 != 0) {
                     console.warn("Unexpected GeometryBuffer format. Seems to contain non-triangles");
                 }
-                stats.num_tris += Math.floor(num_verts / 3);
+                stats.numTris += Math.floor(numVerts / 3);
             }
         });
-        this.vm.final_vrm_tris = "△" + stats.num_tris;
-        this.vm.avatar_height = (new THREE.Box3().setFromObject(this.vrm_root).getSize().y).toFixed(2) + "m";
+        this.vm.finalVrmTris = "△" + stats.numTris;
+        this.vm.avatarHeight = (new THREE.Box3().setFromObject(this.vrmRoot).getSize().y).toFixed(2) + "m";
 
         this.vm.parts =
-            this.vrm_root.children
+            this.vrmRoot.children
                 .filter(obj => obj.type === 'Mesh' || obj.type === 'SkinnedMesh')
                 .map(mesh => {
-
                     return { name: mesh.name, shaderName: mesh.material.shaderName };
                 });
 
-        serialize_vrm(this.vrm_root).then(glb_buffer => {
-            this.vm.final_vrm_size_approx = (glb_buffer.byteLength * 1e-6).toFixed(1) + "MB";
+        serializeVrm(this.vrmRoot).then(glbBuffer => {
+            this.vm.finalVrmSizeApprox = (glbBuffer.byteLength * 1e-6).toFixed(1) + "MB";
         });
     }
 
@@ -225,37 +224,37 @@ class MevApplication {
 function main() {
     const app = new MevApplication(window.innerWidth, window.innerHeight, document.body);
 
-    const start_config = {
-        initial_file: null
+    const startConfig = {
+        initialFile: null
     };
     const start_dialog = new Vue({
         el: "#vue_start_dialog",
         data: {
-            bg_color: "transparent",
+            bgColor: "transparent",
         },
         methods: {
-            file_dragover: function (event) {
+            fileDragover: function (event) {
                 event.preventDefault();
                 event.dataTransfer.dropEffect = 'copy';
-                this.bg_color = "#f5f5f5"; // TODO: Move to HTML or CSS
+                this.bgColor = "#f5f5f5"; // TODO: Move to HTML or CSS
             },
-            file_dragleave: function (event) {
+            fileDragleave: function (event) {
                 event.preventDefault();
-                this.bg_color = "transparent";
+                this.bgColor = "transparent";
             },
-            file_drop: function (event) {
+            fileDrop: function (event) {
                 event.preventDefault();
-                this.bg_color = "transparent";
-                this._set_file_and_exit(event.dataTransfer.files[0]);
+                this.bgColor = "transparent";
+                this._setFileAndExit(event.dataTransfer.files[0]);
             },
-            file_select: function (event) {
-                this._set_file_and_exit(event.srcElement.files[0]);
+            fileSelect: function (event) {
+                this._setFileAndExit(event.srcElement.files[0]);
             },
-            _set_file_and_exit: function (file) {
-                start_config.initial_file = file;
+            _setFileAndExit: function (file) {
+                startConfig.initialFile = file;
                 this.$destroy();
                 document.getElementById("vue_start_dialog").remove();
-                app.load_vrm(file);
+                app.loadVrm(file);
             },
         }
     });
