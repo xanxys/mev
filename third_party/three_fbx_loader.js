@@ -433,7 +433,8 @@ THREE.FBXLoader = ( function () {
 
 			} else {
 
-				texture = this.textureLoader.load( fileName );
+				//texture = this.textureLoader.load( fileName );
+				texture = new THREE.Texture();
 
 			}
 

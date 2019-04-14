@@ -25,6 +25,7 @@ class MevApplication {
         this.renderer.setClearColor(new THREE.Color("#f5f5f5"));
         this.scene.add(this._create_stage());
         this.scene.add(new THREE.DirectionalLight(0xffffff, 1.0));
+        this.scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 0.3));
 
         // Overlay UI
         const app = this;
@@ -76,11 +77,18 @@ class MevApplication {
                         // heuristics: Try to fit in 0.1m~9.9m. (=log10(max_len * K) should be 0.XXX)
                         const scale_factor = Math.pow(10, -Math.floor(Math.log10(max_len)));
                         fbx.scale.set(scale_factor, scale_factor, scale_factor);
+                        fbx.rotateOnWorldAxis(new THREE.Vector3(0, 1, 0), Math.PI);
 
-                        
-
-                        
-                        
+                        // Fix-up materials
+                        fbx.traverse(obj => {
+                            if (obj.type === 'SkinnedMesh' || obj.type === 'Mesh') {
+                                if (obj.material instanceof Array) {
+                                    obj.material = obj.material.map(m => new THREE.MeshLambertMaterial());
+                                } else {
+                                    obj.material = new THREE.MeshLambertMaterial();
+                                }
+                            }
+                        });
                         scene.add(fbx);
                     }
                 );
