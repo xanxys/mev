@@ -2,6 +2,20 @@
 import { parse_vrm, serialize_vrm } from './vrm.js';
 
 /**
+ * Converts {THREE.Object3D} into human-readable object tree.
+ */
+function object_to_tree_debug(obj) {
+    function convert_node(o) {
+        return {
+            name: o.name,
+            type: o.type,
+            children: o.children.map(convert_node),
+        };
+    }
+    return JSON.stringify(convert_node(obj), null, 2);
+}
+
+/**
  * Handle main editor UI & all state. Start dialog is NOT part of this class.
  */
 class MevApplication {
@@ -96,10 +110,12 @@ class MevApplication {
                                 }
                             }
                         });
+                        console.log("FBX-tree", object_to_tree_debug(fbx));
                         scene.add(fbx);
                         app.vrm_root = fbx;
                         app.vm.final_vrm_ready = true;
                         setTimeout(() => {
+                            scene.add(app.create_tree_visualizer(fbx));
                             app.recalculate_final_size();
                         }, 100);
                     }
@@ -114,7 +130,9 @@ class MevApplication {
                 gltf_json => {
                     console.log("gltf loaded", gltf_json);
                     parse_vrm(gltf_json).then(vrm_obj => {
+                        console.log("VRM-tree", object_to_tree_debug(vrm_obj));
                         scene.add(vrm_obj);
+                        scene.add(app.create_tree_visualizer(vrm_obj));
                         app.vrm_root = vrm_obj;
                         app.vm.final_vrm_ready = true;
                         app.recalculate_final_size();
@@ -126,6 +144,27 @@ class MevApplication {
                 });
         });
         reader.readAsDataURL(vrm_file);
+    }
+
+    /**
+     * Creates visual tree that connects parent.position & child.position for all parent-child pairs.
+     * Useful for bone visualization.
+     */
+    create_tree_visualizer(obj) {
+        const geom = new THREE.Geometry();
+        function traverse(o) {
+            const p0 = o.getWorldPosition(new THREE.Vector3());
+            o.children.forEach(c => {
+                const p1 = c.getWorldPosition(new THREE.Vector3());
+                geom.vertices.push(p0);
+                geom.vertices.push(p1);
+                traverse(c);
+            });
+        }
+        traverse(obj);
+        const mat = new THREE.LineBasicMaterial({ color: "red" });
+        mat.depthTest = false;
+        return new THREE.LineSegments(geom, mat);
     }
 
     recalculate_final_size() {
@@ -191,7 +230,7 @@ function main() {
             file_dragover: function (event) {
                 event.preventDefault();
                 event.dataTransfer.dropEffect = 'copy';
-                this.bg_color = "#f5f5f5";
+                this.bg_color = "#f5f5f5"; // TODO: Move to HTML or CSS
             },
             file_dragleave: function (event) {
                 event.preventDefault();
