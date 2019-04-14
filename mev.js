@@ -88,7 +88,7 @@ class MevApplication {
             return;
         }
 
-        const stats = {num_tris: 0};
+        const stats = { num_tris: 0 };
         this.vrm_root.traverse(obj => {
             if (obj.type === 'Mesh' || obj.type === 'SkinnedMesh') {
                 if (obj.geometry.index.count % 3 != 0) {
@@ -97,7 +97,7 @@ class MevApplication {
                 stats.num_tris += Math.floor(obj.geometry.index.count / 3);
             }
         });
-        
+
         serialize_vrm(this.vrm_root).then(glb_buffer => {
             this.vm.final_vrm_size_approx = (glb_buffer.byteLength * 1e-6).toFixed(1) + "MB";
             this.vm.final_vrm_tris = "△" + stats.num_tris;

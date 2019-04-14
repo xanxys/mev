@@ -1,8 +1,7 @@
 /* Color Schema: https://material.io/tools/color/#!/?view.left=0&view.right=0&primary.color=F5F5F5&secondary.color=424242  */
 
 @import url('https://fonts.googleapis.com/css?family=Noto+Sans+JP');
-
-#vue_start_dialog{
+#vue_start_dialog {
     background-color: #ffffff;
     padding: 8px;
     box-shadow: 0px 0px 6px rgba(0, 0, 0, 0.4);
