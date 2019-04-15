@@ -39,11 +39,13 @@
     <section>
       <h2>パーツ</h2>
       <div v-for="part in parts">
-        {{part.name}} - {{part.shaderName}}
+        {{part.name}} <br />
+        <img style="border: 1px; border-color:black" v-bind:src="part.textureUrl" height="48px" /><span
+          class="normal-text">{{part.shaderName}}</span>
       </div>
     </section>
 
-    <section v-if="finalVrmReady">
+    <section v-if=" finalVrmReady">
       <h2>VRMに出力</h2>
       <div class="normal-text">サイズ: {{finalVrmSizeApprox}}</div>
       <div class="normal-text">ポリゴン: {{finalVrmTris}}</div>

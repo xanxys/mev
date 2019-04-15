@@ -192,12 +192,28 @@ class MevApplication {
             this.vrmRoot.children
                 .filter(obj => obj.type === 'Mesh' || obj.type === 'SkinnedMesh')
                 .map(mesh => {
-                    return { name: mesh.name, shaderName: mesh.material.shaderName };
+                    return {
+                        name: mesh.name,
+                        shaderName: mesh.material.shaderName,
+                        textureUrl: mesh.material.map === undefined ? null : MevApplication._convertImageToDataUrlWithHeight(mesh.material.map.image, 48),
+                    };
                 });
 
         serializeVrm(this.vrmRoot).then(glbBuffer => {
             this.vm.finalVrmSizeApprox = (glbBuffer.byteLength * 1e-6).toFixed(1) + "MB";
         });
+    }
+
+    static _convertImageToDataUrlWithHeight(img, targetHeight) {
+        const scaling = targetHeight / img.height;
+        const targetWidth = Math.floor(img.width * scaling);
+
+        const canvas = document.createElement("canvas");
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, img.width, img.height, 0, 0, targetWidth, targetHeight);
+        return canvas.toDataURL("image/png");
     }
 
     /**
