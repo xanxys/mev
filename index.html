@@ -39,7 +39,8 @@
     <section>
       <h2>パーツ</h2>
       <div v-for="part in parts">
-        {{part.name}} <br />
+        {{part.visibility}} {{part.name}} - {{part.numTris}} <br />
+        <button @click="toggleVisible(part.name)">toggle</button>
         <img style="border: 1px; border-color:black" v-bind:src="part.textureUrl" height="48px" /><span
           class="normal-text">{{part.shaderName}}</span>
       </div>

@@ -62,6 +62,18 @@ class MevApplication {
                         saveAs(new Blob([glbBuffer], { type: "application/octet-stream" }), "test.vrm");
                     });
                 },
+                toggleVisible: function (partName) {
+                    // TODO: Think whether we should use flattened objects everywhere or retain tree.
+                    const flattenedObjects = [];
+                    app.vrmRoot.traverse(o => flattenedObjects.push(o));
+
+                    flattenedObjects.filter(obj => obj.type === 'Mesh' || obj.type === 'SkinnedMesh')
+                        .forEach(mesh => {
+                            if (mesh.name === partName) {
+                                mesh.visible = !mesh.visible;
+                            }
+                        });
+                }
             },
         });
     }
@@ -194,10 +206,14 @@ class MevApplication {
             flattenedObjects
                 .filter(obj => obj.type === 'Mesh' || obj.type === 'SkinnedMesh')
                 .map(mesh => {
+                    const numVerts = mesh.geometry.index === null ? mesh.geometry.attributes.position.count : mesh.geometry.index.count;
+                    const numTris = Math.floor(numVerts / 3);
                     return {
+                        visibility: mesh.visible ? "☒" : "☐",
                         name: mesh.name,
                         shaderName: mesh.material.shaderName,
                         textureUrl: (!mesh.material.map || !mesh.material.map.image) ? null : MevApplication._convertImageToDataUrlWithHeight(mesh.material.map.image, 48),
+                        numTris: "△" + numTris,
                     };
                 });
 
