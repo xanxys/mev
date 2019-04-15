@@ -188,14 +188,16 @@ class MevApplication {
         this.vm.finalVrmTris = "△" + stats.numTris;
         this.vm.avatarHeight = (new THREE.Box3().setFromObject(this.vrmRoot).getSize().y).toFixed(2) + "m";
 
+        const flattenedObjects = [];
+        this.vrmRoot.traverse(o => flattenedObjects.push(o));
         this.vm.parts =
-            this.vrmRoot.children
+            flattenedObjects
                 .filter(obj => obj.type === 'Mesh' || obj.type === 'SkinnedMesh')
                 .map(mesh => {
                     return {
                         name: mesh.name,
                         shaderName: mesh.material.shaderName,
-                        textureUrl: mesh.material.map === undefined ? null : MevApplication._convertImageToDataUrlWithHeight(mesh.material.map.image, 48),
+                        textureUrl: (!mesh.material.map || !mesh.material.map.image) ? null : MevApplication._convertImageToDataUrlWithHeight(mesh.material.map.image, 48),
                     };
                 });
 
