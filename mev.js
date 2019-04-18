@@ -200,6 +200,13 @@ class MevApplication {
         this.vm.finalVrmTris = "△" + stats.numTris;
         this.vm.avatarHeight = (new THREE.Box3().setFromObject(this.vrmRoot).getSize().y).toFixed(2) + "m";
 
+        const blendShapeMeshes = new Set();
+        if (this.vrmRoot.vrmExt !== undefined) {
+            this.vrmRoot.vrmExt.blendShapeMaster.blendShapeGroups.forEach(group => {
+                group.binds.forEach(bind => blendShapeMeshes.add(bind.mesh));
+            });
+        }
+
         const flattenedObjects = [];
         this.vrmRoot.traverse(o => flattenedObjects.push(o));
         this.vm.parts =
@@ -209,13 +216,15 @@ class MevApplication {
                     const numVerts = mesh.geometry.index === null ? mesh.geometry.attributes.position.count : mesh.geometry.index.count;
                     const numTris = Math.floor(numVerts / 3);
                     return {
-                        visibility: mesh.visible ? "☒" : "☐",
+                        visibility: (mesh.visible ? "☒" : "☐") + (blendShapeMeshes.has(mesh) ? "BS": ""),
                         name: mesh.name,
                         shaderName: mesh.material.shaderName,
                         textureUrl: (!mesh.material.map || !mesh.material.map.image) ? null : MevApplication._convertImageToDataUrlWithHeight(mesh.material.map.image, 48),
                         numTris: "△" + numTris,
                     };
                 });
+
+
 
         serializeVrm(this.vrmRoot).then(glbBuffer => {
             this.vm.finalVrmSizeApprox = (glbBuffer.byteLength * 1e-6).toFixed(1) + "MB";
