@@ -139,7 +139,12 @@ export function serializeVrm(vrmRoot) {
                 }
             },
             mapTexture: texRef => {
-                console.log("map_texture", texRef);
+                for(const [tex, texId] of gltfResult.cachedData.textures.entries()) {
+                    if (texRef === tex) {
+                        return texId;
+                    }
+                }
+                console.warn("mapTexture failed (not found)", texRef);
                 return 0;
             },
         });
@@ -214,7 +219,7 @@ export function parseVrm(gltf) {
  */
 class VrmExtensionMapper {
     /**
-     * @param {Object} mapper, must have following methods: mapNode, map_mesh, map_texture
+     * @param {Object} mapper, must have following methods: mapNode, mapMesh, mapTexture
      */
     constructor(mapper) {
         this.mapper = mapper;
@@ -227,7 +232,7 @@ class VrmExtensionMapper {
             humanoid: this._convertHumanoid(vrm.humanoid),
             firstPerson: this._convertFirstperson(vrm.firstPerson),
             materialProperties: vrm.materialProperties.map(mat => this._convertMaterial(mat)),
-            meta: vrm.meta,
+            meta: vrm.meta, // TODO: meta.texture contains thumbnail image ref. Need to use mapTexture
             secondaryAnimation: {},
         };
     }
