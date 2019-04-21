@@ -27,8 +27,6 @@ class MevApplication {
         this.camera.position.set(0, 1, -3);
         this.camera.lookAt(0, 0.9, 0);
 
-        this.controls = new THREE.OrbitControls(this.camera);
-
         this.renderer = new THREE.WebGLRenderer();
         // Recommended gamma values from https://threejs.org/docs/#examples/loaders/GLTFLoader
         this.renderer.gammaOutput = true;  // If set, then it expects that all textures and colors need to be outputted in premultiplied gamma.
@@ -36,6 +34,8 @@ class MevApplication {
         this.renderer.setSize(width, height);
         this.renderer.antialias = true;
         canvasInsertionParent.appendChild(this.renderer.domElement);
+
+        this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
 
         this.renderer.setClearColor(new THREE.Color("#f5f5f5"));
         this.scene.add(this._create_stage());
@@ -216,7 +216,7 @@ class MevApplication {
                     const numVerts = mesh.geometry.index === null ? mesh.geometry.attributes.position.count : mesh.geometry.index.count;
                     const numTris = Math.floor(numVerts / 3);
                     return {
-                        visibility: (mesh.visible ? "☒" : "☐") + (blendShapeMeshes.has(mesh) ? "BS": ""),
+                        visibility: (mesh.visible ? "☒" : "☐") + (blendShapeMeshes.has(mesh) ? "BS" : ""),
                         name: mesh.name,
                         shaderName: mesh.material.shaderName,
                         textureUrl: (!mesh.material.map || !mesh.material.map.image) ? null : MevApplication._convertImageToDataUrlWithHeight(mesh.material.map.image, 48),

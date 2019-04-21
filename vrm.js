@@ -139,7 +139,7 @@ export function serializeVrm(vrmRoot) {
                 }
             },
             mapTexture: texRef => {
-                for(const [tex, texId] of gltfResult.cachedData.textures.entries()) {
+                for (const [tex, texId] of gltfResult.cachedData.textures.entries()) {
                     if (texRef === tex) {
                         return texId;
                     }
