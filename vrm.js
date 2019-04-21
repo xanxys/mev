@@ -186,25 +186,23 @@ export function parseVrm(gltf) {
         const vrm = ref_to_real.convertVrm(gltf.parser.json.extensions.VRM);
         console.log(vrm);
 
-        gltf.parser.json.extensions.VRM.materialProperties.forEach(mat_prop => {
-            if (mat_prop.shader === "VRM_USE_GLTFSHADER") {
+        gltf.parser.json.extensions.VRM.materialProperties.forEach(matProp => {
+            if (matProp.shader === "VRM_USE_GLTFSHADER") {
                 return;
             }
 
-            // TODO: Property set morphTargets bool
-            const mat = new vrm_mat.VRMShaderMaterial({ morphTargets: false, skinning: true });
-            mat.fromMaterialProperty(mat_prop, textures);
+            // TODO: Properly set morphTargets bool
+            const mat = new vrm_mat.VRMShaderMaterial(
+                { morphTargets: false, skinning: true }, matProp, textures);
 
             // TODO: This is inefficient. Fix.
             gltf.scene.traverse(obj => {
                 if (obj.type !== 'Mesh' && obj.type !== 'SkinnedMesh') {
                     return;
                 }
-                if (obj.material.name !== mat_prop.name) {
+                if (obj.material.name !== matProp.name) {
                     return;
                 }
-                console.log(mat_prop);
-                console.log("Fix-Material-VRM", mat, "->", obj);
                 obj.material = mat;
             });
         });

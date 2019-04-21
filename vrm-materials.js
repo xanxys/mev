@@ -50,10 +50,18 @@ void main() {
   vec3 totalEmissiveRadiance = emissive;
 
   #include <logdepthbuf_fragment>
-  #include <map_fragment>
+
+  #ifdef USE_MAP
+  vec4 texelColor = texture2D( map, vUv );
+  texelColor = mapTexelToLinear( texelColor );
+  diffuseColor *= texelColor;
+  #endif
   #include <color_fragment>
-  #include <alphamap_fragment>
-  #include <alphatest_fragment>
+
+  #ifdef _ALPHATEST_ON
+  if ( diffuseColor.a < ALPHATEST ) discard;
+  #endif
+
   #include <specularmap_fragment>
   #include <normal_fragment_begin>
   #include <normal_fragment_maps>
@@ -241,13 +249,11 @@ uniform int f_IsFirstSetup;
 THREE.ShaderChunk['common_mtoon'] = mtoon_common;
 THREE.ShaderChunk['lights_mtoon_pars_fragment'] = mtoon_lights;
 
-// TODO: Separate internal conversion logic & public API (properties)
-export const vrmMaterials = new Map([
+const vrmMaterialConverters = new Map([
     [
         'VRM/UnlitTexture',
         {
             defaultParameters: {
-                defines: {},
                 uniforms: {
                     ...THREE.ShaderLib.basic.uniforms,
                     f_Cutoff: { value: 0.0 },
@@ -264,7 +270,6 @@ export const vrmMaterials = new Map([
         'VRM/UnlitCutout',
         {
             defaultParameters: {
-                defines: {},
                 uniforms: {
                     ...THREE.ShaderLib.basic.uniforms,
                     f_Cutoff: { value: 0.0 },
@@ -281,7 +286,6 @@ export const vrmMaterials = new Map([
         'VRM/UnlitTransparent',
         {
             defaultParameters: {
-                defines: {},
                 uniforms: {
                     ...THREE.ShaderLib.basic.uniforms,
                     f_Cutoff: { value: 0.0 },
@@ -300,7 +304,6 @@ export const vrmMaterials = new Map([
         'VRM/UnlitTransparentZWrite',
         {
             defaultParameters: {
-                defines: {},
                 uniforms: {
                     ...THREE.ShaderLib.basic.uniforms,
                     f_Cutoff: { value: 0.0 },
@@ -319,7 +322,6 @@ export const vrmMaterials = new Map([
         'VRM/MToon',
         {
             defaultParameters: {
-                defines: {},
                 uniforms: {
                     ...THREE.ShaderLib.phong.uniforms,
                     f_Cutoff: { value: 0.0 },
@@ -340,18 +342,18 @@ export const vrmMaterials = new Map([
 
                 switch (material.userData.RenderType.value) {
                     case 'Opaque': {
-                        delete material.defines.ALPHATEST;
                         break;
                     }
                     case 'Cutout': {
+                        material.defines['_ALPHATEST_ON'] = true;
                         break;
                     }
                     case 'Transparent': {
-                        delete material.defines.ALPHATEST;
                         material.transparent = true;
                         break;
                     }
                     case 'TransparentCutout': {
+                        material.defines['_ALPHATEST_ON'] = true;
                         material.transparent = true;
                         break;
                     }
@@ -397,90 +399,89 @@ export const vrmMaterials = new Map([
     ],
 ]);
 
+export const vrmMaterials = vrmMaterialConverters.keys();
+
 // TODO: Refactor
 export class VRMShaderMaterial extends THREE.ShaderMaterial {
-    constructor(parameters) {
-        super(parameters);
+    constructor(shaderMaterialProperties, property, textures) {
+        super(shaderMaterialProperties);
 
         Object.assign(this.uniforms, { v_Color: { value: new THREE.Vector4(1.0, 0.0, 1.0, 1.0) } });
         this.vertexShader = THREE.ShaderLib.basic.vertexShader;
         this.fragmentShader = THREE.ShaderLib.basic.fragmentShader;
 
-        VRMShaderMaterial._convertCommonParameters(this);
-    }
-
-    fromMaterialProperty(property, textures) {
         this.name = property.name;
 
         const shaderName = property.shader;
-        if (!vrmMaterials.has(shaderName)) {
+        const converter = vrmMaterialConverters.get(shaderName);
+        if (converter === undefined) {
             return;
         }
         this.shaderName = shaderName;
-        const vrmMaterial = vrmMaterials.get(property.shader);
 
-        const defines = {};
-        const uniforms = {};
-
-        for (const key of Object.keys(property.floatProperties)) {
-            uniforms['f' + key] = { value: property.floatProperties[key] };
+        if (this.name === 'F00_000_FaceEyeline_00_FACE') {
+            console.log("A");
         }
 
+        const parameters = converter.defaultParameters;
+
+        Object.assign(this.uniforms, parameters.uniforms);
+        for (const key of Object.keys(property.floatProperties)) {
+            this.uniforms['f' + key] = { value: property.floatProperties[key] };
+        }
         for (const key of Object.keys(property.vectorProperties)) {
             const array = property.vectorProperties[key].concat();
             array.length = 4;
-            uniforms['v' + key] = { value: new THREE.Vector4().fromArray(array) };
+            this.uniforms['v' + key] = { value: new THREE.Vector4().fromArray(array) };
         }
-
         for (const key of Object.keys(property.textureProperties)) {
             const tex = textures[property.textureProperties[key]];
             if (tex !== undefined) {
-                uniforms['t' + key] = { value: tex };
+                this.uniforms['t' + key] = { value: tex };
             }
         }
 
         for (const key of Object.keys(property.keywordMap)) {
-            defines[key] = property.keywordMap[key];
+            this.defines[key] = property.keywordMap[key];
         }
 
         for (const key of Object.keys(property.tagMap)) {
             this.userData[key] = { value: property.tagMap[key] };
         }
 
-        const parameters = vrmMaterial.defaultParameters;
-        Object.assign(this.defines, parameters.defines);
-        Object.assign(this.defines, defines);
+        this._convertCommonParameters();
+        if (converter.convert !== null) {
+            converter.convert(this);
+        }
 
-        Object.assign(this.uniforms, parameters.uniforms);
-        Object.assign(this.uniforms, uniforms);
-
+        console.log("SH", property, this);
+        this.lights = parameters.lights;
         this.vertexShader = parameters.vertexShader;
         this.fragmentShader = parameters.fragmentShader;
-        this.lights = parameters.lights;
-
-        VRMShaderMaterial._convertCommonParameters(this);
-        if (vrmMaterial.convert !== null) {
-            vrmMaterial.convert(this);
-        }
     }
 
-
-    static _convertCommonParameters(material) {
-        // if (material.defines._ALPHAPREMULTIPLY_ON !== undefined) {
-        //   material.defines.PREMULTIPLIED_ALPHA = material.defines._ALPHAPREMULTIPLY_ON;
-        // }
-
-        if (material.uniforms.f_Cutoff) {
-            material.defines.ALPHATEST = (material.uniforms.f_Cutoff.value).toFixed(6);
+    _convertCommonParameters() {
+        if (this.defines._ALPHABLEND_ON !== undefined) {
+            // NOTE: Transparency & RenderQueue & BlendEquation are all different,
+            // but for some reason THREE.js decide to use .transparent for enableing alpha-blending.
+            this.transparent = true;
         }
 
-        const color = material.uniforms.v_Color.value;
-        material.uniforms.diffuse = { value: new THREE.Color(color.x, color.y, color.z) };
-        material.uniforms.opacity = { value: color.w };
+        if (this.defines._ALPHAPREMULTIPLY_ON !== undefined) {
+            this.defines.PREMULTIPLIED_ALPHA = this.defines._ALPHAPREMULTIPLY_ON;
+        }
 
-        if (material.uniforms.t_MainTex) {
-            material.map = material.uniforms.t_MainTex.value;
-            material.uniforms.map = material.uniforms.t_MainTex;
+        if (this.uniforms.f_Cutoff) {
+            this.defines.ALPHATEST = (this.uniforms.f_Cutoff.value).toFixed(6);
+        }
+
+        const color = this.uniforms.v_Color.value;
+        this.uniforms.diffuse = { value: new THREE.Color(color.x, color.y, color.z) };
+        this.uniforms.opacity = { value: color.w };
+
+        if (this.uniforms.t_MainTex) {
+            this.map = this.uniforms.t_MainTex.value;
+            this.uniforms.map = this.uniforms.t_MainTex;
         }
     }
 }

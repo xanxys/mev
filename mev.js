@@ -143,7 +143,7 @@ class MevApplication {
                 gltfJson => {
                     console.log("gltf loaded", gltfJson);
                     parseVrm(gltfJson).then(vrmObj => {
-                        console.log("VRM-tree", objectToTreeDebug(vrmObj));
+                        //console.log("VRM-tree", objectToTreeDebug(vrmObj));
                         scene.add(vrmObj);
                         scene.add(app.createTreeVisualizer(vrmObj));
                         app.vrmRoot = vrmObj;
