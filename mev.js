@@ -50,6 +50,7 @@ class MevApplication {
             data: {
                 avatarHeight: null,
                 avatarName: "",
+                blendshapes: [],
                 parts: [],
                 finalVrmReady: false,
                 finalVrmSizeApprox: "",
@@ -223,8 +224,25 @@ class MevApplication {
                         numTris: "△" + numTris,
                     };
                 });
-
-
+        console.log("BSe", this.vrmRoot.vrmExt);
+        this.vm.blendshapes = this.vrmRoot.vrmExt.blendShapeMaster.blendShapeGroups.map(bs => {
+            const binds = bs.binds.map(bind => {
+                const targetMesh = (bind.mesh.type === "Group") ? bind.mesh.children[0] : bind.mesh;
+                const morphIndexToName = {};
+                Object.keys(targetMesh.morphTargetDictionary).forEach(key => {
+                    morphIndexToName[targetMesh.morphTargetDictionary[key]] = key;
+                });
+                return {
+                    m: bind.mesh.name,
+                    b: morphIndexToName[bind.index],
+                    w: bind.weight,
+                };
+            });
+            return {
+                name: bs.presetName,
+                content: JSON.stringify(binds),
+            };
+        });
 
         serializeVrm(this.vrmRoot).then(glbBuffer => {
             this.vm.finalVrmSizeApprox = (glbBuffer.byteLength * 1e-6).toFixed(1) + "MB";

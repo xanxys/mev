@@ -1507,7 +1507,18 @@ THREE.GLTFLoader = ( function () {
 				console.warn( 'THREE.GLTFLoader: Invalid extras.targetNames length. Ignoring names.' );
 
 			}
+		} else if (meshDef.primitives && meshDef.primitives.length && meshDef.primitives[0].extras && meshDef.primitives[0].extras.targetNames) {
+			meshDef.primitives.forEach(primitive => {
+				if (primitive.extras.targetNames.length !== mesh.morphTargetInfluences.length) {
+					console.warn( 'THREE.GLTFLoader: Invalid extras.targetNames length. Ignoring names.' );
+					return;
+				}
 
+				mesh.morphTargetDictionary = {};
+				primitive.extras.targetNames.forEach((value, index) => {
+					mesh.morphTargetDictionary[value] = index;
+				});
+			});
 		}
 
 	}

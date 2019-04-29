@@ -37,6 +37,13 @@
     </section>
 
     <section style="max-height:600px; overflow-y:auto">
+      <h2>表情</h2>
+      <div v-for="blendshape in blendshapes">
+        {{blendshape.name}} {{blendshape.content}}
+      </div>
+    </section>
+
+    <section style="max-height:600px; overflow-y:auto">
       <h2>パーツ</h2>
       <div v-for="part in parts">
         {{part.visibility}} {{part.name}} - {{part.numTris}} <br />
