@@ -168,7 +168,7 @@ class MevApplication {
         function traverse(o) {
             const p0 = o.getWorldPosition(new THREE.Vector3());
             o.children.forEach(c => {
-                if (c.type === 'Bone') {
+                if (c.type === "Bone" && o.type === "Bone") {
                     const p1 = c.getWorldPosition(new THREE.Vector3());
                     geom.vertices.push(p0);
                     geom.vertices.push(p1);
