@@ -18,7 +18,14 @@ function objectToTreeDebug(obj) {
 
 /**
  * Handle main editor UI & all state. Start dialog is NOT part of this class.
+ * 
+ * Design:
+ *  - Canonical VRM data = THREE.Object3D.
+ *  - Converter = Converts "VRM data" into ViewModel quickly, realtime.
+ *  - Vue data = ViewModel. Write-operation directly goes to VRM data (and notifies converter).
  */
+// TODO: For some reason, computed methods are called every frame. Maybe some internal property in three.js is changing
+// every frame? this is not good for performance, but is acceptable for now...
 class MevApplication {
     constructor(width, height, canvasInsertionParent) {
         // Three.js canvas
@@ -48,29 +55,27 @@ class MevApplication {
         Vue.component(
             "menu-section-emotion", {
                 template: "#menu_section_emotion",
+                data: function () {
+                    return {};
+                },
+                methods: {
+                },
             },
         );
         this.vm = new Vue({
             el: '#vue_menu',
             data: {
-                avatarHeight: null,
-                avatarName: "",
-                editingEmotionLabel: "",
-                // Deprecated
-                blendshapes: [],
+                // Global
+                vrmRoot: null,
                 showEmotionPane: false,
+
+                // Main Pane
+                avatarName: "",
                 currentEmotion: "Neutral",
-                emotionGroups: [
-                    [{ label: "Neutral" }],
-                    [{ label: "A" }, { label: "I" }],
-                    [{ label: "Joy" }, { label: "Angry" }],
-                    [{ label: "Blink" }, { label: "BlinkR" }],
-                    [{ label: "LookLeft" }, { label: "LookRight" }],
-                ],
-                parts: [],
-                finalVrmReady: false,
                 finalVrmSizeApprox: "",
-                finalVrmTris: "",
+
+                // Emotion-Edit Pane
+                editingEmotionLabel: "",
             },
             methods: {
                 clickEmotion: function (emotionLabel) {
@@ -80,6 +85,11 @@ class MevApplication {
                     } else {
                         this.currentEmotion = emotionLabel;
                     }
+                },
+                calculateFinalSizeAsync: function () {
+                    serializeVrm(this.vrmRoot).then(glbBuffer => {
+                        this.finalVrmSizeApprox = (glbBuffer.byteLength * 1e-6).toFixed(1) + "MB";
+                    });
                 },
                 downloadVrm: function (event) {
                     console.log("Download requested");
@@ -104,6 +114,7 @@ class MevApplication {
                 },
             },
             computed: {
+                // Toolbar & global pane state.
                 toolbarTitle: function () {
                     if (this.showEmotionPane) {
                         return "表情:" + this.editingEmotionLabel;
@@ -116,6 +127,88 @@ class MevApplication {
                 },
                 showMainPane: function () {
                     return !this.showEmotionPane;
+                },
+
+                // Main page state "converter".
+                avatarHeight: function () {
+                    if (this.vrmRoot === null) {
+                        return "";
+                    }
+                    return (new THREE.Box3().setFromObject(this.vrmRoot).getSize(new THREE.Vector3()).y).toFixed(2) + "m";
+                },
+                finalVrmTris: function () {
+                    if (this.vrmRoot === null) {
+                        return "";
+                    }
+                    const stats = { numTris: 0 };
+                    this.vrmRoot.traverse(obj => {
+                        if (obj.type === 'Mesh' || obj.type === 'SkinnedMesh') {
+                            const numVerts = obj.geometry.index === null ? obj.geometry.attributes.position.count : obj.geometry.index.count;
+                            if (numVerts % 3 != 0) {
+                                console.warn("Unexpected GeometryBuffer format. Seems to contain non-triangles");
+                            }
+                            stats.numTris += Math.floor(numVerts / 3);
+                        }
+                    });
+                    return "△" + stats.numTris;
+                },
+                // Deprecated: Use emotionGroups
+                blendshapes: function () {
+                    console.log("BSe", this.vrmRoot.vrmExt);
+                    return this.vrmRoot.vrmExt.blendShapeMaster.blendShapeGroups.map(bs => {
+                        const binds = bs.binds.map(bind => {
+                            const targetMesh = (bind.mesh.type === "Group") ? bind.mesh.children[0] : bind.mesh;
+                            const morphIndexToName = {};
+                            Object.keys(targetMesh.morphTargetDictionary).forEach(key => {
+                                morphIndexToName[targetMesh.morphTargetDictionary[key]] = key;
+                            });
+                            return {
+                                m: bind.mesh.name,
+                                b: morphIndexToName[bind.index],
+                                w: bind.weight,
+                            };
+                        });
+                        return {
+                            name: bs.presetName,
+                            content: JSON.stringify(binds),
+                        };
+                    });
+                },
+                emotionGroups: function () {
+                    return [
+                        [{ label: "Neutral" }],
+                        [{ label: "A" }, { label: "I" }],
+                        [{ label: "Joy" }, { label: "Angry" }],
+                        [{ label: "Blink" }, { label: "BlinkR" }],
+                        [{ label: "LookLeft" }, { label: "LookRight" }],
+                    ];
+                },
+                parts: function () {
+                    if (this.vrmRoot === null) {
+                        return [];
+                    }
+                    const blendShapeMeshes = new Set();
+                    if (this.vrmRoot.vrmExt !== undefined) {
+                        this.vrmRoot.vrmExt.blendShapeMaster.blendShapeGroups.forEach(group => {
+                            group.binds.forEach(bind => blendShapeMeshes.add(bind.mesh));
+                        });
+                    }
+
+                    const flattenedObjects = [];
+                    this.vrmRoot.traverse(o => flattenedObjects.push(o));
+                    return flattenedObjects
+                        .filter(obj => obj.type === 'Mesh' || obj.type === 'SkinnedMesh')
+                        .map(mesh => {
+                            const numVerts = mesh.geometry.index === null ? mesh.geometry.attributes.position.count : mesh.geometry.index.count;
+                            const numTris = Math.floor(numVerts / 3);
+                            return {
+                                visibility: (mesh.visible ? "☒" : "☐") + (blendShapeMeshes.has(mesh) ? "BS" : ""),
+                                name: mesh.name,
+                                shaderName: mesh.material.shaderName,
+                                textureUrl: (!mesh.material.map || !mesh.material.map.image) ? null : MevApplication._convertImageToDataUrlWithHeight(mesh.material.map.image, 48),
+                                numTris: "△" + numTris,
+                            };
+                        });
                 },
             },
         });
@@ -169,7 +262,7 @@ class MevApplication {
                         console.log("FBX-tree", objectToTreeDebug(fbx));
                         scene.add(fbx);
                         app.vrmRoot = fbx;
-                        app.vm.finalVrmReady = true;
+                        app.vm.vrmRoot = fbx;
                         setTimeout(() => {
                             scene.add(app.createTreeVisualizer(fbx));
                             app.recalculateFinalSize();
@@ -190,7 +283,7 @@ class MevApplication {
                         scene.add(vrmObj);
                         scene.add(app.createTreeVisualizer(vrmObj));
                         app.vrmRoot = vrmObj;
-                        app.vm.finalVrmReady = true;
+                        app.vm.vrmRoot = vrmObj;
                         app.recalculateFinalSize();
                     });
                 },
@@ -226,69 +319,7 @@ class MevApplication {
     }
 
     recalculateFinalSize() {
-        if (!this.vm.finalVrmReady) {
-            return;
-        }
-
-        const stats = { numTris: 0 };
-        this.vrmRoot.traverse(obj => {
-            if (obj.type === 'Mesh' || obj.type === 'SkinnedMesh') {
-                const numVerts = obj.geometry.index === null ? obj.geometry.attributes.position.count : obj.geometry.index.count;
-                if (numVerts % 3 != 0) {
-                    console.warn("Unexpected GeometryBuffer format. Seems to contain non-triangles");
-                }
-                stats.numTris += Math.floor(numVerts / 3);
-            }
-        });
-        this.vm.finalVrmTris = "△" + stats.numTris;
-        this.vm.avatarHeight = (new THREE.Box3().setFromObject(this.vrmRoot).getSize().y).toFixed(2) + "m";
-
-        const blendShapeMeshes = new Set();
-        if (this.vrmRoot.vrmExt !== undefined) {
-            this.vrmRoot.vrmExt.blendShapeMaster.blendShapeGroups.forEach(group => {
-                group.binds.forEach(bind => blendShapeMeshes.add(bind.mesh));
-            });
-        }
-
-        const flattenedObjects = [];
-        this.vrmRoot.traverse(o => flattenedObjects.push(o));
-        this.vm.parts =
-            flattenedObjects
-                .filter(obj => obj.type === 'Mesh' || obj.type === 'SkinnedMesh')
-                .map(mesh => {
-                    const numVerts = mesh.geometry.index === null ? mesh.geometry.attributes.position.count : mesh.geometry.index.count;
-                    const numTris = Math.floor(numVerts / 3);
-                    return {
-                        visibility: (mesh.visible ? "☒" : "☐") + (blendShapeMeshes.has(mesh) ? "BS" : ""),
-                        name: mesh.name,
-                        shaderName: mesh.material.shaderName,
-                        textureUrl: (!mesh.material.map || !mesh.material.map.image) ? null : MevApplication._convertImageToDataUrlWithHeight(mesh.material.map.image, 48),
-                        numTris: "△" + numTris,
-                    };
-                });
-        console.log("BSe", this.vrmRoot.vrmExt);
-        this.vm.blendshapes = this.vrmRoot.vrmExt.blendShapeMaster.blendShapeGroups.map(bs => {
-            const binds = bs.binds.map(bind => {
-                const targetMesh = (bind.mesh.type === "Group") ? bind.mesh.children[0] : bind.mesh;
-                const morphIndexToName = {};
-                Object.keys(targetMesh.morphTargetDictionary).forEach(key => {
-                    morphIndexToName[targetMesh.morphTargetDictionary[key]] = key;
-                });
-                return {
-                    m: bind.mesh.name,
-                    b: morphIndexToName[bind.index],
-                    w: bind.weight,
-                };
-            });
-            return {
-                name: bs.presetName,
-                content: JSON.stringify(binds),
-            };
-        });
-
-        serializeVrm(this.vrmRoot).then(glbBuffer => {
-            this.vm.finalVrmSizeApprox = (glbBuffer.byteLength * 1e-6).toFixed(1) + "MB";
-        });
+        this.vm.calculateFinalSizeAsync();
     }
 
     static _convertImageToDataUrlWithHeight(img, targetHeight) {
