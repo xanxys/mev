@@ -222,8 +222,10 @@ class MevApplication {
         requestAnimationFrame(() => this.animate());
     }
 
-    // TODO: Rename / think whether we should separate .fbx loader function/UI.
-    loadVrm(vrmFile) {
+    // It's very clear now that we need somewhat complex FBX -> VRM converter (even some UI to resolve ambiguity).
+    // For now, assume FBX load show some object in the scene (sometimes) but UI functionality is broken because
+    // its vrmRoot object lack VRM structure.
+    loadFbxOrVrm(vrmFile) {
         const isFbx = vrmFile.name.toLowerCase().endsWith('.fbx');
         this.vm.avatarName = vrmFile.name;
 
@@ -355,12 +357,7 @@ class MevApplication {
     }
 }
 
-function main() {
-    const app = new MevApplication(window.innerWidth, window.innerHeight, document.body);
-
-    const startConfig = {
-        initialFile: null
-    };
+function setupStartDialog(onFileSelected) {
     const start_dialog = new Vue({
         el: "#vue_start_dialog",
         data: {
@@ -385,14 +382,17 @@ function main() {
                 this._setFileAndExit(event.srcElement.files[0]);
             },
             _setFileAndExit: function (file) {
-                startConfig.initialFile = file;
                 this.$destroy();
                 document.getElementById("vue_start_dialog").remove();
-                app.loadVrm(file);
+                onFileSelected(file);
             },
         }
     });
+}
 
+function main() {
+    const app = new MevApplication(window.innerWidth, window.innerHeight, document.body);
+    setupStartDialog(file => app.loadFbxOrVrm(file));
     app.animate();
 }
 
