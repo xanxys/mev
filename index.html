@@ -30,44 +30,63 @@
   </div>
 
   <div style="position: absolute; left:8px; top: 8px; width: 240px" id="vue_menu">
-    <h1>{{avatarName}}</h1>
-    <section>
-      <h2>身体</h2>
-      <div class="normal-text">身長: {{avatarHeight}}</div>
+    <!-- Toolbar -->
+    <section class="menu_toolbar">
+      <button class="toolbar_button" v-if="showBackButton" @click="clickBackButton">
+        <img src="ui_asset/baseline-arrow_back-24px.svg" style="filter: contrast(10%) brightness(5)" />
+      </button>
+      <h1 style="display:inline-block">{{toolbarTitle}}</h1>
     </section>
 
-    <section>
-      <h2>表情</h2>
-      <div v-for="emotionGroup in emotionGroups" style="padding-bottom: 8px">
-        <span v-for="emotion in emotionGroup" class="chip-button"
-          :class="{'chip-button-active': emotion.label === currentEmotion}" @click="clickEmotion(emotion.label)">{{emotion.label}}</span>
-      </div>
-    </section>
+    <menu-section-emotion v-if="showEmotionPane">
+    </menu-section-emotion>
 
-    <section style="max-height:600px; overflow-y:auto">
-      <h2>表情 (dev)</h2>
-      <div v-for="blendshape in blendshapes">
-        {{blendshape.name}} {{blendshape.content}}
-      </div>
-    </section>
+    <!-- Menu body (main) -->
+    <section class="menu_body" v-if="showMainPane">
+      <section>
+        <h2>身体</h2>
+        <div class="normal-text">身長: {{avatarHeight}}</div>
+      </section>
 
-    <section style="max-height:600px; overflow-y:auto">
-      <h2>パーツ</h2>
-      <div v-for="part in parts">
-        {{part.visibility}} {{part.name}} - {{part.numTris}} <br />
-        <button @click="toggleVisible(part.name)">toggle</button>
-        <img style="border: 1px; border-color:black" v-bind:src="part.textureUrl" height="48px" /><span
-          class="normal-text">{{part.shaderName}}</span>
-      </div>
-    </section>
+      <section>
+        <h2>表情</h2>
+        <div v-for="emotionGroup in emotionGroups" style="padding-bottom: 8px">
+          <span v-for="emotion in emotionGroup" class="chip-button"
+            :class="{'chip-button-active': emotion.label === currentEmotion}"
+            @click="clickEmotion(emotion.label)">{{emotion.label}}</span>
+        </div>
+      </section>
 
-    <section v-if=" finalVrmReady">
-      <h2>VRMに出力</h2>
-      <div class="normal-text">サイズ: {{finalVrmSizeApprox}}</div>
-      <div class="normal-text">ポリゴン: {{finalVrmTris}}</div>
-      <button @click="downloadVrm">ダウンロード</button>
+      <section style="max-height:600px; overflow-y:auto">
+        <h2>パーツ</h2>
+        <div v-for="part in parts">
+          {{part.visibility}} {{part.name}} - {{part.numTris}} <br />
+          <button @click="toggleVisible(part.name)">toggle</button>
+          <img style="border: 1px; border-color:black" v-bind:src="part.textureUrl" height="48px" /><span
+            class="normal-text">{{part.shaderName}}</span>
+        </div>
+      </section>
+
+      <section v-if=" finalVrmReady">
+        <h2>VRMに出力</h2>
+        <div class="normal-text">サイズ: {{finalVrmSizeApprox}}</div>
+        <div class="normal-text">ポリゴン: {{finalVrmTris}}</div>
+        <button @click="downloadVrm">ダウンロード</button>
+      </section>
     </section>
   </div>
+
+  <!-- Vue.js Components -->
+  <script type="text/x-template" id="menu_section_emotion">
+    <div>
+      <!-- Menu body -->
+      <section class="menu_body">
+        <section>
+          sliders
+        </section>
+      </section>
+    </div>
+  </script>
 
   <!-- Debug -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/2.6.10/vue.js"

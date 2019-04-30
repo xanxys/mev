@@ -45,16 +45,23 @@ class MevApplication {
         // Overlay UI
         const app = this;
         const scene = this.scene;
+        Vue.component(
+            "menu-section-emotion", {
+                template: "#menu_section_emotion",
+            },
+        );
         this.vm = new Vue({
             el: '#vue_menu',
             data: {
                 avatarHeight: null,
                 avatarName: "",
+                editingEmotionLabel: "",
                 // Deprecated
                 blendshapes: [],
+                showEmotionPane: false,
                 currentEmotion: "Neutral",
                 emotionGroups: [
-                    [{ label: "Neutral"}],
+                    [{ label: "Neutral" }],
                     [{ label: "A" }, { label: "I" }],
                     [{ label: "Joy" }, { label: "Angry" }],
                     [{ label: "Blink" }, { label: "BlinkR" }],
@@ -68,7 +75,8 @@ class MevApplication {
             methods: {
                 clickEmotion: function (emotionLabel) {
                     if (this.currentEmotion === emotionLabel) {
-                        // TODO: Transition to edit mode
+                        this.editingEmotionLabel = emotionLabel;
+                        this.showEmotionPane = true;
                     } else {
                         this.currentEmotion = emotionLabel;
                     }
@@ -90,7 +98,25 @@ class MevApplication {
                                 mesh.visible = !mesh.visible;
                             }
                         });
-                }
+                },
+                clickBackButton: function () {
+                    this.showEmotionPane = false;
+                },
+            },
+            computed: {
+                toolbarTitle: function () {
+                    if (this.showEmotionPane) {
+                        return "表情:" + this.editingEmotionLabel;
+                    } else {
+                        return this.avatarName;
+                    }
+                },
+                showBackButton: function () {
+                    return this.showEmotionPane;
+                },
+                showMainPane: function () {
+                    return !this.showEmotionPane;
+                },
             },
         });
     }
