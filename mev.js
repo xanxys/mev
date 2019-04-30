@@ -50,13 +50,29 @@ class MevApplication {
             data: {
                 avatarHeight: null,
                 avatarName: "",
+                // Deprecated
                 blendshapes: [],
+                currentEmotion: "Neutral",
+                emotionGroups: [
+                    [{ label: "Neutral"}],
+                    [{ label: "A" }, { label: "I" }],
+                    [{ label: "Joy" }, { label: "Angry" }],
+                    [{ label: "Blink" }, { label: "BlinkR" }],
+                    [{ label: "LookLeft" }, { label: "LookRight" }],
+                ],
                 parts: [],
                 finalVrmReady: false,
                 finalVrmSizeApprox: "",
                 finalVrmTris: "",
             },
             methods: {
+                clickEmotion: function (emotionLabel) {
+                    if (this.currentEmotion === emotionLabel) {
+                        // TODO: Transition to edit mode
+                    } else {
+                        this.currentEmotion = emotionLabel;
+                    }
+                },
                 downloadVrm: function (event) {
                     console.log("Download requested");
                     serializeVrm(app.vrmRoot).then(glbBuffer => {

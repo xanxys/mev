@@ -1,6 +1,7 @@
 /* Color Schema: https://material.io/tools/color/#!/?view.left=0&view.right=0&primary.color=F5F5F5&secondary.color=424242  */
 
 @import url('https://fonts.googleapis.com/css?family=Noto+Sans+JP');
+@import url('https://fonts.googleapis.com/css?family=Roboto');
 #vue_start_dialog {
     background-color: #ffffff;
     padding: 8px;
@@ -21,6 +22,32 @@ body {
     font-family: 'Noto Sans JP', sans-serif;
     font-size: 13px;
     font-weight: light;
+}
+
+/* UI Component: Chip Button */
+
+.chip-button {
+    background-color: #c2c2c2;
+    font-size: 14px;
+    border-radius: 4px;
+    display: inline-block;
+    min-width: 8px;
+    margin-right: 8px;
+    text-align: center;
+    padding: 4px;
+    padding-left: 8px;
+    padding-right: 8px;
+    font-family: 'Roboto', sans-serif;
+    font-weight: normal;
+    text-transform: uppercase;
+    cursor: pointer;
+    user-select: none;
+}
+
+.chip-button-active {
+    background-color: #424242;
+    color: white;
+    font-weight: bolder;
 }
 
 /* Menu section header */

@@ -36,8 +36,16 @@
       <div class="normal-text">身長: {{avatarHeight}}</div>
     </section>
 
-    <section style="max-height:600px; overflow-y:auto">
+    <section>
       <h2>表情</h2>
+      <div v-for="emotionGroup in emotionGroups" style="padding-bottom: 8px">
+        <span v-for="emotion in emotionGroup" class="chip-button"
+          :class="{'chip-button-active': emotion.label === currentEmotion}" @click="clickEmotion(emotion.label)">{{emotion.label}}</span>
+      </div>
+    </section>
+
+    <section style="max-height:600px; overflow-y:auto">
+      <h2>表情 (dev)</h2>
       <div v-for="blendshape in blendshapes">
         {{blendshape.name}} {{blendshape.content}}
       </div>
