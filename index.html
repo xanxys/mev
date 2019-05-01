@@ -5,6 +5,7 @@
   <meta chartset="utf-8">
   <title>me/v</title>
   <link rel="stylesheet" href="./mev.css" type="text/css">
+  <link rel="stylesheet" href="./third_party/mprogress.min.css" type="text/css">
 </head>
 
 <body style="margin:0; overflow:hidden">
@@ -41,10 +42,12 @@
     <menu-section-emotion v-if="showEmotionPane" :weight-configs="currentWeightConfigs">
     </menu-section-emotion>
 
+    <section id="loading_progress" style="padding: 8px" v-if="isLoading">
+    </section>
+
     <!-- Menu body (main) -->
     <section class="menu_body" v-if="showMainPane">
       <section>
-        <h2>身体</h2>
         <div class="normal-text">身長: {{avatarHeight}}</div>
       </section>
 
@@ -57,13 +60,15 @@
         </div>
       </section>
 
-      <section style="max-height:600px; overflow-y:auto">
+      <section>
         <h2>パーツ</h2>
-        <div v-for="part in parts">
-          {{part.visibility}} {{part.name}} - {{part.numTris}} <br />
-          <button @click="toggleVisible(part.name)">toggle</button>
-          <img style="border: 1px; border-color:black" v-bind:src="part.textureUrl" height="48px" /><span
-            class="normal-text">{{part.shaderName}}</span>
+        <div style="max-height:300px; overflow-y:auto">
+          <div v-for="part in parts">
+            {{part.visibility}} {{part.name}} - {{part.numTris}} <br />
+            <button @click="toggleVisible(part.name)">toggle</button>
+            <img style="border: 1px; border-color:black" v-bind:src="part.textureUrl" height="48px" /><span
+              class="normal-text">{{part.shaderName}}</span>
+          </div>
         </div>
       </section>
 
@@ -109,6 +114,7 @@
   <script src="./third_party/three_fbx_loader.js"></script>
   <script src="./third_party/three_orbit_controls.js"></script>
   <script src="./third_party/file_saver.js"></script>
+  <script src="./third_party/mprogress.min.js"></script>
   <script type="module" src="./mev.js"></script>
 </body>
 

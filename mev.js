@@ -40,10 +40,10 @@ const EMOTION_PRESET_NAME_TO_LABEL = {
     "blink_r": "瞬目:右",
     // TODO: isn't this left-right etc. technical limitation of Unity? (i.e. not being able to set negative weight)?
     // Better to automate by detecting symmetry.
-    "lookleft": "視線←",
-    "lookright": "視線→",
-    "lookup": "視線↑",
-    "lookdown": "視線↓",
+    "lookleft": "目←",
+    "lookright": "目→",
+    "lookup": "目↑",
+    "lookdown": "目↓",
 };
 
 /**
@@ -79,6 +79,12 @@ class MevApplication {
         this.scene.add(new THREE.DirectionalLight(0xffffff, 1.0));
         this.scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 0.3));
 
+        // Setup progress indicator
+        new Mprogress({
+            template: 3,
+            parent: "#loading_progress",
+        }).start();
+
         // Overlay UI
         const app = this;
         const scene = this.scene;
@@ -94,6 +100,7 @@ class MevApplication {
             el: '#vue_menu',
             data: {
                 // Global
+                startedLoading: false,
                 vrmRoot: null,
                 showEmotionPane: false,
 
@@ -168,7 +175,10 @@ class MevApplication {
                     return this.showEmotionPane;
                 },
                 showMainPane: function () {
-                    return !this.showEmotionPane;
+                    return !this.showEmotionPane && this.vrmRoot !== null;
+                },
+                isLoading: function() {
+                    return this.vrmRoot === null && this.startedLoading;
                 },
 
                 // Main page state "converter".
@@ -311,6 +321,7 @@ class MevApplication {
     // its vrmRoot object lack VRM structure.
     loadFbxOrVrm(vrmFile) {
         const isFbx = vrmFile.name.toLowerCase().endsWith('.fbx');
+        this.vm.startedLoading = true;
         this.vm.avatarName = vrmFile.name;
 
         // three-vrm currently doesn't have .parse() method, need to convert to data URL...
