@@ -24,6 +24,28 @@ function flatten(arr) {
     return [].concat.apply([], arr);
 }
 
+const EMOTION_PRESET_NAME_TO_LABEL = {
+    "neutral": "標準",
+    "a": "あ",
+    "i": "い",
+    "u": "う",
+    "e": "え",
+    "o": "お",
+    "joy": "喜",
+    "angry": "怒",
+    "sorrow": "哀",
+    "fun": "楽",
+    "blink": "瞬目",
+    "blink_l": "瞬目:左",
+    "blink_r": "瞬目:右",
+    // TODO: isn't this left-right etc. technical limitation of Unity? (i.e. not being able to set negative weight)?
+    // Better to automate by detecting symmetry.
+    "lookleft": "視線←",
+    "lookright": "視線→",
+    "lookup": "視線↑",
+    "lookdown": "視線↓",
+};
+
 /**
  * Handle main editor UI & all state. Start dialog is NOT part of this class.
  * 
@@ -63,11 +85,7 @@ class MevApplication {
         Vue.component(
             "menu-section-emotion", {
                 template: "#menu_section_emotion",
-                data: function () {
-                    return {
-                        weightConfigs: [],
-                    };
-                },
+                props: ["weightConfigs"],
                 methods: {
                 },
             },
@@ -82,11 +100,8 @@ class MevApplication {
                 // Main Pane
                 avatarName: "",
                 avatarHeight: "",
-                currentEmotion: "Neutral",
+                currentEmotionPresetName: "neutral",
                 finalVrmSizeApprox: "",
-
-                // Emotion-Edit Pane
-                editingEmotionLabel: "",
             },
             watch: {
                 vrmRoot: function (newValue, oldValue) {
@@ -96,12 +111,12 @@ class MevApplication {
                 },
             },
             methods: {
-                clickEmotion: function (emotionLabel) {
-                    if (this.currentEmotion === emotionLabel) {
-                        this.editingEmotionLabel = emotionLabel;
+                clickEmotion: function (emotionPresetName) {
+                    if (this.currentEmotionPresetName === emotionPresetName) {
+                        this.editingEmotionLabel = emotionPresetName;
                         this.showEmotionPane = true;
                     } else {
-                        this.currentEmotion = emotionLabel;
+                        this.currentEmotionPresetName = emotionPresetName;
                     }
                 },
                 calculateFinalSizeAsync: function () {
@@ -144,7 +159,7 @@ class MevApplication {
                 // Toolbar & global pane state.
                 toolbarTitle: function () {
                     if (this.showEmotionPane) {
-                        return "表情:" + this.editingEmotionLabel;
+                        return "表情:" + EMOTION_PRESET_NAME_TO_LABEL[this.currentEmotionPresetName];
                     } else {
                         return this.avatarName;
                     }
@@ -187,19 +202,21 @@ class MevApplication {
                             });
                             return {
                                 m: bind.mesh.name,
-                                b: morphIndexToName[bind.index],
-                                w: bind.weight,
+                                morphName: morphIndexToName[bind.index],
+                                weight: bind.weight,
                             };
                         });
                         return {
                             name: bs.presetName,
-                            content: JSON.stringify(binds),
+                            weightConfigs: binds,
                         };
                     });
                 },
                 emotionGroups: function () {
-                    console.log(this.blendshapes);
-                    const defaultGrouping = [
+                    if (this.vrmRoot == null) {
+                        return [];
+                    }
+                    const EMOTION_PRESET_GROUPING = [
                         ["neutral"],
                         ["a", "i", "u", "e", "o"],
                         ["joy", "angry", "sorrow", "fun"],
@@ -207,44 +224,24 @@ class MevApplication {
                         ["lookleft", "lookright", "lookup", "lookdown"],
                         // All unknown will go into the last group.
                     ];
-                    const presetNameToUi = {
-                        "neutral": "標準",
-                        "a": "あ",
-                        "i": "い",
-                        "u": "う",
-                        "e": "え",
-                        "o": "お",
-                        "joy": "喜",
-                        "angry": "怒",
-                        "sorrow": "哀",
-                        "fun": "楽",
-                        "blink": "瞬目",
-                        "blink_l": "瞬目:左",
-                        "blink_r": "瞬目:右",
-                        // TODO: isn't this left-right etc. technical limitation of Unity? (i.e. not being able to set negative weight)?
-                        // Better to automate by detecting symmetry.
-                        "lookleft": "視線←",
-                        "lookright": "視線→",
-                        "lookup": "視線↑",
-                        "lookdown": "視線↓",
-                    }
-                    const knownNames = new Set(flatten(defaultGrouping));
+
+                    const knownNames = new Set(flatten(EMOTION_PRESET_GROUPING));
 
                     const nameToBlendshape = new Map(this.blendshapes.map(bs => [bs.name, bs]));
-                    const groups = defaultGrouping.map(defaultGroupDef => {
+                    const groups = EMOTION_PRESET_GROUPING.map(defaultGroupDef => {
                         return defaultGroupDef.map(name => {
                             if (nameToBlendshape.has(name)) {
                                 return {
                                     presetName: name,
-                                    label: presetNameToUi[name],
-                                    content: nameToBlendshape[name],
+                                    label: EMOTION_PRESET_NAME_TO_LABEL[name],
+                                    weightConfigs: nameToBlendshape.get(name).weightConfigs,
                                 };
                             } else {
                                 console.warn("The VRM is missing standard blendshape preset: " + name + ". Creating new one.");
                                 return {
                                     presetName: name,
-                                    label: presetNameToUi[name],
-                                    content: [],
+                                    label: EMOTION_PRESET_NAME_TO_LABEL[name],
+                                    weightConfigs: [],
                                 };
                             }
                         });
@@ -256,7 +253,7 @@ class MevApplication {
                             unknownGroup.push({
                                 presetName: bs.name,
                                 label: bs.name,
-                                content: bs.content,
+                                weightConfigs: bs.weightConfigs,
                             });
                         }
                     });
@@ -265,6 +262,10 @@ class MevApplication {
                     }
 
                     return groups;
+                },
+                currentWeightConfigs: function () {
+                    const nameToBlendshape = new Map(this.blendshapes.map(bs => [bs.name, bs]));
+                    return nameToBlendshape.get(this.currentEmotionPresetName).weightConfigs;
                 },
                 parts: function () {
                     if (this.vrmRoot === null) {

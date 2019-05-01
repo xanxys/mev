@@ -38,7 +38,7 @@
       <h1 style="display:inline-block">{{toolbarTitle}}</h1>
     </section>
 
-    <menu-section-emotion v-if="showEmotionPane">
+    <menu-section-emotion v-if="showEmotionPane" :weight-configs="currentWeightConfigs">
     </menu-section-emotion>
 
     <!-- Menu body (main) -->
@@ -52,8 +52,8 @@
         <h2>表情</h2>
         <div v-for="emotionGroup in emotionGroups" style="padding-bottom: 8px">
           <span v-for="emotion in emotionGroup" class="chip-button"
-            :class="{'chip-button-active': emotion.label === currentEmotion}"
-            @click="clickEmotion(emotion.label)">{{emotion.label}}</span>
+            :class="{'chip-button-active': emotion.presetName === currentEmotionPresetName}"
+            @click="clickEmotion(emotion.presetName)">{{emotion.label}}</span>
         </div>
       </section>
 
@@ -83,7 +83,8 @@
       <section class="menu_body">
         <section>
           <div v-for="weightConfig in weightConfigs">
-          {{weightConfig.name}}: <input type="range">
+          {{weightConfig.morphName}}<br/>
+          <input type="range" :value="weightConfig.weight">
           </div>
         </section>
       </section>
