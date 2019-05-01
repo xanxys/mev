@@ -21,6 +21,29 @@
     height: 48px;
     /* prevent accidental size change */
     overflow: hidden;
+    display: flex;
+}
+
+.menu_toolbar button {
+    display: inline-block;
+}
+
+.menu_toolbar h1 {
+    height: 100%;
+    width: 100%;
+    margin-top: 0px;
+    margin-bottom: 0px;
+    line-height: 48px;
+    top: 0px;
+    display: inline-block;
+    /* Force single line & show ellipsis */
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+}
+
+.menu_toolbar h1:first-child {
+    padding-left: 8px;
 }
 
 .menu_body {
