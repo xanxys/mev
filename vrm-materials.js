@@ -50,10 +50,18 @@ void main() {
   vec3 totalEmissiveRadiance = emissive;
 
   #include <logdepthbuf_fragment>
-  #include <map_fragment>
+
+  #ifdef USE_MAP
+  vec4 texelColor = texture2D( map, vUv );
+  texelColor = mapTexelToLinear( texelColor );
+  diffuseColor *= texelColor;
+  #endif
   #include <color_fragment>
-  #include <alphamap_fragment>
-  #include <alphatest_fragment>
+
+  #ifdef _ALPHATEST_ON
+  if ( diffuseColor.a < ALPHATEST ) discard;
+  #endif
+
   #include <specularmap_fragment>
   #include <normal_fragment_begin>
   #include <normal_fragment_maps>
@@ -241,244 +249,239 @@ uniform int f_IsFirstSetup;
 THREE.ShaderChunk['common_mtoon'] = mtoon_common;
 THREE.ShaderChunk['lights_mtoon_pars_fragment'] = mtoon_lights;
 
-
-const defaultParameters = new Map([
+const vrmMaterialConverters = new Map([
     [
         'VRM/UnlitTexture',
         {
-            defines: {},
-            uniforms: {
-                ...THREE.ShaderLib.basic.uniforms,
-                f_Cutoff: { value: 0.0 },
-                v_Color: { value: new THREE.Vector4(1.0, 1.0, 1.0, 1.0) },
+            defaultParameters: {
+                uniforms: {
+                    ...THREE.ShaderLib.basic.uniforms,
+                    f_Cutoff: { value: 0.0 },
+                    v_Color: { value: new THREE.Vector4(1.0, 1.0, 1.0, 1.0) },
+                },
+                vertexShader: THREE.ShaderLib.basic.vertexShader,
+                fragmentShader: THREE.ShaderLib.basic.fragmentShader,
+                lights: false,
             },
-            vertexShader: THREE.ShaderLib.basic.vertexShader,
-            fragmentShader: THREE.ShaderLib.basic.fragmentShader,
-            lights: false,
+            convert: null,
         },
     ],
     [
         'VRM/UnlitCutout',
         {
-            defines: {},
-            uniforms: {
-                ...THREE.ShaderLib.basic.uniforms,
-                f_Cutoff: { value: 0.0 },
-                v_Color: { value: new THREE.Vector4(1.0, 1.0, 1.0, 1.0) },
+            defaultParameters: {
+                uniforms: {
+                    ...THREE.ShaderLib.basic.uniforms,
+                    f_Cutoff: { value: 0.0 },
+                    v_Color: { value: new THREE.Vector4(1.0, 1.0, 1.0, 1.0) },
+                },
+                vertexShader: THREE.ShaderLib.basic.vertexShader,
+                fragmentShader: THREE.ShaderLib.basic.fragmentShader,
+                lights: false,
             },
-            vertexShader: THREE.ShaderLib.basic.vertexShader,
-            fragmentShader: THREE.ShaderLib.basic.fragmentShader,
-            lights: false,
+            convert: null,
         },
     ],
     [
         'VRM/UnlitTransparent',
         {
-            defines: {},
-            uniforms: {
-                ...THREE.ShaderLib.basic.uniforms,
-                f_Cutoff: { value: 0.0 },
-                v_Color: { value: new THREE.Vector4(1.0, 1.0, 1.0, 1.0) },
+            defaultParameters: {
+                uniforms: {
+                    ...THREE.ShaderLib.basic.uniforms,
+                    f_Cutoff: { value: 0.0 },
+                    v_Color: { value: new THREE.Vector4(1.0, 1.0, 1.0, 1.0) },
+                },
+                vertexShader: THREE.ShaderLib.basic.vertexShader,
+                fragmentShader: THREE.ShaderLib.basic.fragmentShader,
+                lights: false,
             },
-            vertexShader: THREE.ShaderLib.basic.vertexShader,
-            fragmentShader: THREE.ShaderLib.basic.fragmentShader,
-            lights: false,
+            convert: material => {
+                material.transparent = true;
+            },
         },
     ],
     [
         'VRM/UnlitTransparentZWrite',
         {
-            defines: {},
-            uniforms: {
-                ...THREE.ShaderLib.basic.uniforms,
-                f_Cutoff: { value: 0.0 },
-                v_Color: { value: new THREE.Vector4(1.0, 1.0, 1.0, 1.0) },
+            defaultParameters: {
+                uniforms: {
+                    ...THREE.ShaderLib.basic.uniforms,
+                    f_Cutoff: { value: 0.0 },
+                    v_Color: { value: new THREE.Vector4(1.0, 1.0, 1.0, 1.0) },
+                },
+                vertexShader: THREE.ShaderLib.basic.vertexShader,
+                fragmentShader: THREE.ShaderLib.basic.fragmentShader,
+                lights: false,
             },
-            vertexShader: THREE.ShaderLib.basic.vertexShader,
-            fragmentShader: THREE.ShaderLib.basic.fragmentShader,
-            lights: false,
+            convert: material => {
+                material.transparent = true;
+            }
         },
     ],
     [
         'VRM/MToon',
         {
-            defines: {},
-            uniforms: {
-                ...THREE.ShaderLib.phong.uniforms,
-                f_Cutoff: { value: 0.0 },
-                v_Color: { value: new THREE.Vector4(1.0, 1.0, 1.0, 1.0) },
+            defaultParameters: {
+                uniforms: {
+                    ...THREE.ShaderLib.phong.uniforms,
+                    f_Cutoff: { value: 0.0 },
+                    v_Color: { value: new THREE.Vector4(1.0, 1.0, 1.0, 1.0) },
+                },
+                vertexShader: mtoon_vert,
+                fragmentShader: mtoon_frag,
+                lights: true,
             },
-            vertexShader: mtoon_vert,
-            fragmentShader: mtoon_frag,
-            lights: true,
+            convert: material => {
+                if (!material.uniforms.t_SphereAdd) {
+                    material.uniforms.t_SphereAdd = {
+                        value: new THREE.DataTexture(new Uint8Array(3), 1, 1, THREE.RGBFormat),
+                    };
+                }
+
+                material.uniforms.shininess = { value: 0.0 };
+
+                switch (material.userData.RenderType.value) {
+                    case 'Opaque': {
+                        break;
+                    }
+                    case 'Cutout': {
+                        material.defines['_ALPHATEST_ON'] = true;
+                        break;
+                    }
+                    case 'Transparent': {
+                        material.transparent = true;
+                        break;
+                    }
+                    case 'TransparentCutout': {
+                        material.defines['_ALPHATEST_ON'] = true;
+                        material.transparent = true;
+                        break;
+                    }
+                }
+
+                if (material.uniforms.f_BumpScale) {
+                    const normalScale = new THREE.Vector2(1, 1).multiplyScalar(material.uniforms.f_BumpScale.value);
+                    material.normalScale = normalScale;
+                    material.uniforms.normalScale = { value: normalScale };
+                }
+                if (material.uniforms.t_BumpMap) {
+                    material.normalMap = material.uniforms.t_BumpMap.value;
+                    material.uniforms.normalMap = material.uniforms.t_BumpMap;
+                }
+
+                if (material.uniforms.v_EmissionColor) {
+                    material.emissive = material.uniforms.v_EmissionColor.value;
+                    material.uniforms.emissive = material.uniforms.v_EmissionColor;
+                }
+                if (material.uniforms.t_EmissionMap) {
+                    material.emissiveMap = material.uniforms.t_EmissionMap.value;
+                    material.uniforms.emissiveMap = material.uniforms.t_EmissionMap;
+                }
+
+                if (material.uniforms.f_CullMode) {
+                    switch (material.uniforms.f_CullMode.value) {
+                        case 0: {
+                            material.side = THREE.DoubleSide;
+                            break;
+                        }
+                        case 1: {
+                            material.side = THREE.BackSide;
+                            break;
+                        }
+                        case 2: {
+                            material.side = THREE.FrontSide;
+                            break;
+                        }
+                    }
+                }
+            },
         },
     ],
 ]);
 
-const convertParameters = new Map([
-    [
-        'common',
-        material => {
-            // if (material.defines._ALPHAPREMULTIPLY_ON !== undefined) {
-            //   material.defines.PREMULTIPLIED_ALPHA = material.defines._ALPHAPREMULTIPLY_ON;
-            // }
+export const vrmMaterials = vrmMaterialConverters.keys();
 
-            if (material.uniforms.f_Cutoff) {
-                material.defines.ALPHATEST = (material.uniforms.f_Cutoff.value).toFixed(6);
-            }
-
-            const color = material.uniforms.v_Color.value;
-            material.uniforms.diffuse = { value: new THREE.Color(color.x, color.y, color.z) };
-            material.uniforms.opacity = { value: color.w };
-
-            if (material.uniforms.t_MainTex) {
-                material.map = material.uniforms.t_MainTex.value;
-                material.uniforms.map = material.uniforms.t_MainTex;
-            }
-        },
-    ],
-    ['VRM/UnlitTexture', material => null],
-    ['VRM/UnlitCutout', material => null],
-    [
-        'VRM/UnlitTransparent',
-        material => {
-            material.transparent = true;
-        },
-    ],
-    [
-        'VRM/UnlitTransparentZWrite',
-        material => {
-            material.transparent = true;
-        },
-    ],
-    [
-        'VRM/MToon',
-        material => {
-            if (!material.uniforms.t_SphereAdd) {
-                material.uniforms.t_SphereAdd = {
-                    value: new THREE.DataTexture(new Uint8Array(3), 1, 1, THREE.RGBFormat),
-                };
-            }
-
-            material.uniforms.shininess = { value: 0.0 };
-
-            switch (material.userData.RenderType.value) {
-                case 'Opaque': {
-                    delete material.defines.ALPHATEST;
-                    break;
-                }
-                case 'Cutout': {
-                    break;
-                }
-                case 'Transparent': {
-                    delete material.defines.ALPHATEST;
-                    material.transparent = true;
-                    break;
-                }
-                case 'TransparentCutout': {
-                    material.transparent = true;
-                    break;
-                }
-            }
-
-            if (material.uniforms.f_BumpScale) {
-                const normalScale = new THREE.Vector2(1, 1).multiplyScalar(material.uniforms.f_BumpScale.value);
-                material.normalScale = normalScale;
-                material.uniforms.normalScale = { value: normalScale };
-            }
-            if (material.uniforms.t_BumpMap) {
-                material.normalMap = material.uniforms.t_BumpMap.value;
-                material.uniforms.normalMap = material.uniforms.t_BumpMap;
-            }
-
-            if (material.uniforms.v_EmissionColor) {
-                material.emissive = material.uniforms.v_EmissionColor.value;
-                material.uniforms.emissive = material.uniforms.v_EmissionColor;
-            }
-            if (material.uniforms.t_EmissionMap) {
-                material.emissiveMap = material.uniforms.t_EmissionMap.value;
-                material.uniforms.emissiveMap = material.uniforms.t_EmissionMap;
-            }
-
-            if (material.uniforms.f_CullMode) {
-                switch (material.uniforms.f_CullMode.value) {
-                    case 0: {
-                        material.side = THREE.DoubleSide;
-                        break;
-                    }
-                    case 1: {
-                        material.side = THREE.BackSide;
-                        break;
-                    }
-                    case 2: {
-                        material.side = THREE.FrontSide;
-                        break;
-                    }
-                }
-            }
-        },
-    ],
-]);
-
+// TODO: Refactor
 export class VRMShaderMaterial extends THREE.ShaderMaterial {
-    constructor(parameters) {
-        super(parameters);
+    constructor(shaderMaterialProperties, property, textures) {
+        super(shaderMaterialProperties);
 
         Object.assign(this.uniforms, { v_Color: { value: new THREE.Vector4(1.0, 0.0, 1.0, 1.0) } });
         this.vertexShader = THREE.ShaderLib.basic.vertexShader;
         this.fragmentShader = THREE.ShaderLib.basic.fragmentShader;
 
-        convertParameters.get('common')(this);
-    }
-
-    fromMaterialProperty(property, textures) {
         this.name = property.name;
 
-        if (!defaultParameters.has(property.shader) || !convertParameters.has(property.shader)) {
+        const shaderName = property.shader;
+        const converter = vrmMaterialConverters.get(shaderName);
+        if (converter === undefined) {
             return;
         }
+        this.shaderName = shaderName;
 
-        const parameters = defaultParameters.get(property.shader);
-
-        const defines = {};
-        const uniforms = {};
-
-        for (const key of Object.keys(property.floatProperties)) {
-            uniforms['f' + key] = { value: property.floatProperties[key] };
+        if (this.name === 'F00_000_FaceEyeline_00_FACE') {
+            console.log("A");
         }
 
+        const parameters = converter.defaultParameters;
+
+        Object.assign(this.uniforms, parameters.uniforms);
+        for (const key of Object.keys(property.floatProperties)) {
+            this.uniforms['f' + key] = { value: property.floatProperties[key] };
+        }
         for (const key of Object.keys(property.vectorProperties)) {
             const array = property.vectorProperties[key].concat();
             array.length = 4;
-            uniforms['v' + key] = { value: new THREE.Vector4().fromArray(array) };
+            this.uniforms['v' + key] = { value: new THREE.Vector4().fromArray(array) };
         }
-
         for (const key of Object.keys(property.textureProperties)) {
             const tex = textures[property.textureProperties[key]];
             if (tex !== undefined) {
-                uniforms['t' + key] = { value: tex };
+                this.uniforms['t' + key] = { value: tex };
             }
         }
 
         for (const key of Object.keys(property.keywordMap)) {
-            defines[key] = property.keywordMap[key];
+            this.defines[key] = property.keywordMap[key];
         }
 
         for (const key of Object.keys(property.tagMap)) {
             this.userData[key] = { value: property.tagMap[key] };
         }
 
-        Object.assign(this.defines, parameters.defines);
-        Object.assign(this.defines, defines);
+        this._convertCommonParameters();
+        if (converter.convert !== null) {
+            converter.convert(this);
+        }
 
-        Object.assign(this.uniforms, parameters.uniforms);
-        Object.assign(this.uniforms, uniforms);
-
+        console.log("SH", property, this);
+        this.lights = parameters.lights;
         this.vertexShader = parameters.vertexShader;
         this.fragmentShader = parameters.fragmentShader;
-        this.lights = parameters.lights;
+    }
 
-        convertParameters.get('common')(this);
-        convertParameters.get(property.shader)(this);
+    _convertCommonParameters() {
+        if (this.defines._ALPHABLEND_ON !== undefined) {
+            // NOTE: Transparency & RenderQueue & BlendEquation are all different,
+            // but for some reason THREE.js decide to use .transparent for enableing alpha-blending.
+            this.transparent = true;
+        }
+
+        if (this.defines._ALPHAPREMULTIPLY_ON !== undefined) {
+            this.defines.PREMULTIPLIED_ALPHA = this.defines._ALPHAPREMULTIPLY_ON;
+        }
+
+        if (this.uniforms.f_Cutoff) {
+            this.defines.ALPHATEST = (this.uniforms.f_Cutoff.value).toFixed(6);
+        }
+
+        const color = this.uniforms.v_Color.value;
+        this.uniforms.diffuse = { value: new THREE.Color(color.x, color.y, color.z) };
+        this.uniforms.opacity = { value: color.w };
+
+        if (this.uniforms.t_MainTex) {
+            this.map = this.uniforms.t_MainTex.value;
+            this.uniforms.map = this.uniforms.t_MainTex;
+        }
     }
 }

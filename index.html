@@ -1,21 +1,111 @@
 <!DOCTYPE html>
-<html>
+<html lang="ja">
 
 <head>
+  <meta chartset="utf-8">
   <title>me/v</title>
+  <link rel="stylesheet" href="./mev.css" type="text/css">
+  <link rel="stylesheet" href="./third_party/checkbox.css" type="text/css">
+  <link rel="stylesheet" href="./third_party/mprogress.min.css" type="text/css">
 </head>
 
 <body style="margin:0; overflow:hidden">
-  <div style="position: absolute; left:8px; top: 8px; background-color: white; width: 240px" id="vue_menu">
-    Open vrm File<br />
-    <input type="file" @change="change_file"></input>
-    <br />
-    Textures<br />
-    <div id="textures"></div>
+  <div style="position: absolute; left:30%; top: 200px; width:40%" id="vue_start_dialog">
+    <!--<h2>VRMかFBXを読み込んで編集開始</h2> -->
+    <h2>VRMを読み込む</h2>
 
-    <button @click="download_vrm">Download VRM</button>
+    <section style="text-align: center">
+      <div id="dropzone"
+        style="height: 100px; border-style:dotted; border-color: grey; border-width: 3px; text-align: center; padding-top: 24px"
+        v-bind:style="{backgroundColor: bgColor}" @dragover="fileDragover" @dragleave="fileDragleave" @drop="fileDrop">
+        <img src="ui_asset/baseline-open_in_browser-24px.svg" width="48px" height="48px" style="filter:contrast(10%)">
+        <br />
+        ファイルをドロップする
+      </div>
 
+      または<br />
+      <input type="file" @change="fileSelect"></input>
+    </section>
+
+    <section>
+      <span class="text-aux">※編集はすべてブラウザ内で行われ、読み込んだデータがアップロードされることはありません。</span>
+    </section>
   </div>
+
+  <div style="position: absolute; left:8px; top: 8px; width: 240px" id="vue_menu">
+    <!-- Toolbar -->
+    <section class="menu_toolbar">
+      <button class="toolbar_button" v-if="showBackButton" @click="clickBackButton">
+        <img src="ui_asset/baseline-arrow_back-24px.svg" style="filter: contrast(10%) brightness(5)" />
+      </button>
+      <h1 style="display:inline-block">{{toolbarTitle}}</h1>
+    </section>
+
+    <menu-section-emotion v-if="showEmotionPane" :weight-configs="currentWeightConfigs">
+    </menu-section-emotion>
+
+    <section id="loading_progress" style="padding: 8px" v-if="isLoading">
+    </section>
+
+    <!-- Menu body (main) -->
+    <section class="menu_body" v-if="showMainPane">
+      <section>
+        <div class="normal-text">身長: {{avatarHeight}}</div>
+      </section>
+
+      <section>
+        <h2>表情</h2>
+        <div v-for="emotionGroup in emotionGroups" style="padding-bottom: 8px">
+          <span v-for="emotion in emotionGroup" class="chip-button"
+            :class="{'chip-button-active': emotion.presetName === currentEmotionPresetName}"
+            @click="clickEmotion(emotion.presetName)">{{emotion.label}}</span>
+        </div>
+      </section>
+
+      <section>
+        <h2>パーツ</h2>
+        <div style="max-height:300px; overflow-y:auto">
+          <div v-for="part in parts">
+            <label class="pure-material-checkbox" style="width: 100%">
+              <input type="checkbox" @click="toggleVisible(part.name)" :checked="part.visibility">
+              <span>{{part.name}} <span class="text-aux"
+                  style="float: right; padding-right: 4px">{{part.numTris}}</span></span>
+            </label>
+            <br />
+            <img style="border: 1px; border-color:black" v-bind:src="part.textureUrl" height="48px" /><span
+              class="normal-text">{{part.shaderName}}</span>
+          </div>
+        </div>
+      </section>
+
+      <section v-if="finalVrmSizeApprox">
+        <h2>VRMに出力</h2>
+        <div class="normal-text">サイズ: {{finalVrmSizeApprox}}</div>
+        <div class="normal-text">ポリゴン: {{finalVrmTris}}</div>
+        <button @click="downloadVrm">ダウンロード</button>
+      </section>
+    </section>
+  </div>
+
+  <!-- Vue.js Components -->
+  <script type="text/x-template" id="menu_section_emotion">
+    <div>
+      <!-- Menu body -->
+      <section class="menu_body">
+        <section v-if="weightConfigs.length === 0">
+          表情が設定されていません。
+        </section>
+        <section>
+          <div v-for="weightConfig in weightConfigs">
+          {{weightConfig.morphName}}: {{weightConfig.weight}}
+          <!-- TODO: Implement editing
+          <input type="range" :value="weightConfig.weight">
+          -->
+          </div>
+        </section>
+      </section>
+    </div>
+  </script>
 
   <!-- Debug -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/2.6.10/vue.js"
@@ -31,8 +121,11 @@
 
   <script src="./third_party/three_gltf_loader.js"></script>
   <script src="./third_party/three_gltf_exporter.js"></script>
+  <script src="./third_party/zlib.js"></script>
+  <script src="./third_party/three_fbx_loader.js"></script>
   <script src="./third_party/three_orbit_controls.js"></script>
   <script src="./third_party/file_saver.js"></script>
+  <script src="./third_party/mprogress.min.js"></script>
   <script type="module" src="./mev.js"></script>
 </body>
 

@@ -852,27 +852,18 @@ THREE.GLTFExporter.prototype = {
 
 			};
 
-			// Hack alert!!
-			// TODO: Stabilize this
-			if (material.name.indexOf("MToon") >= 0) {
-				// Convert to unlit for now.
-			
-				gltfMaterial.extensions = { KHR_materials_unlit: {} };
-				extensionsUsed[ 'KHR_materials_unlit' ] = true;	
-
-
-
-
-			} else if ( material.isShaderMaterial ) {
-
-				console.warn( 'GLTFExporter: THREE.ShaderMaterial not supported.', material );
-				return null;
-
-			}
-
-
-
-			if ( material.isMeshBasicMaterial ) {
+			if ( material.isShaderMaterial ) {
+				// Hack alert!!
+				// TODO: Stabilize this
+				if (material.shaderName.indexOf("MToon") >= 0) {
+					// Convert to unlit for now.
+					gltfMaterial.extensions = { KHR_materials_unlit: {} };
+					extensionsUsed[ 'KHR_materials_unlit' ] = true;	
+				} else {
+					console.warn( 'GLTFExporter: THREE.ShaderMaterial not supported.', material );
+					return null;
+				}
+			} else if ( material.isMeshBasicMaterial ) {
 
 				gltfMaterial.extensions = { KHR_materials_unlit: {} };
 
