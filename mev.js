@@ -17,6 +17,14 @@ function objectToTreeDebug(obj) {
 }
 
 /**
+ * Flatten array of array into an array.
+ * `[[1, 2], [3]] -> [1, 2, 3]`
+ */
+function flatten(arr) {
+    return [].concat.apply([], arr);
+}
+
+/**
  * Handle main editor UI & all state. Start dialog is NOT part of this class.
  * 
  * Design:
@@ -56,7 +64,9 @@ class MevApplication {
             "menu-section-emotion", {
                 template: "#menu_section_emotion",
                 data: function () {
-                    return {};
+                    return {
+                        weightConfigs: [],
+                    };
                 },
                 methods: {
                 },
@@ -165,7 +175,9 @@ class MevApplication {
                 },
                 // Deprecated: Use emotionGroups
                 blendshapes: function () {
-                    console.log("BSe", this.vrmRoot.vrmExt);
+                    if (this.vrmRoot === null) {
+                        return [];
+                    }
                     return this.vrmRoot.vrmExt.blendShapeMaster.blendShapeGroups.map(bs => {
                         const binds = bs.binds.map(bind => {
                             const targetMesh = (bind.mesh.type === "Group") ? bind.mesh.children[0] : bind.mesh;
@@ -186,13 +198,73 @@ class MevApplication {
                     });
                 },
                 emotionGroups: function () {
-                    return [
-                        [{ label: "Neutral" }],
-                        [{ label: "A" }, { label: "I" }],
-                        [{ label: "Joy" }, { label: "Angry" }],
-                        [{ label: "Blink" }, { label: "BlinkR" }],
-                        [{ label: "LookLeft" }, { label: "LookRight" }],
+                    console.log(this.blendshapes);
+                    const defaultGrouping = [
+                        ["neutral"],
+                        ["a", "i", "u", "e", "o"],
+                        ["joy", "angry", "sorrow", "fun"],
+                        ["blink", "blink_l", "blink_r"],
+                        ["lookleft", "lookright", "lookup", "lookdown"],
+                        // All unknown will go into the last group.
                     ];
+                    const presetNameToUi = {
+                        "neutral": "標準",
+                        "a": "あ",
+                        "i": "い",
+                        "u": "う",
+                        "e": "え",
+                        "o": "お",
+                        "joy": "喜",
+                        "angry": "怒",
+                        "sorrow": "哀",
+                        "fun": "楽",
+                        "blink": "瞬目",
+                        "blink_l": "瞬目:左",
+                        "blink_r": "瞬目:右",
+                        // TODO: isn't this left-right etc. technical limitation of Unity? (i.e. not being able to set negative weight)?
+                        // Better to automate by detecting symmetry.
+                        "lookleft": "視線←",
+                        "lookright": "視線→",
+                        "lookup": "視線↑",
+                        "lookdown": "視線↓",
+                    }
+                    const knownNames = new Set(flatten(defaultGrouping));
+
+                    const nameToBlendshape = new Map(this.blendshapes.map(bs => [bs.name, bs]));
+                    const groups = defaultGrouping.map(defaultGroupDef => {
+                        return defaultGroupDef.map(name => {
+                            if (nameToBlendshape.has(name)) {
+                                return {
+                                    presetName: name,
+                                    label: presetNameToUi[name],
+                                    content: nameToBlendshape[name],
+                                };
+                            } else {
+                                console.warn("The VRM is missing standard blendshape preset: " + name + ". Creating new one.");
+                                return {
+                                    presetName: name,
+                                    label: presetNameToUi[name],
+                                    content: [],
+                                };
+                            }
+                        });
+                    }
+                    );
+                    const unknownGroup = [];
+                    this.blendshapes.forEach(bs => {
+                        if (!knownNames.has(bs.name)) {
+                            unknownGroup.push({
+                                presetName: bs.name,
+                                label: bs.name,
+                                content: bs.content,
+                            });
+                        }
+                    });
+                    if (unknownGroup.length > 0) {
+                        groups.push(unknownGroup);
+                    }
+
+                    return groups;
                 },
                 parts: function () {
                     if (this.vrmRoot === null) {

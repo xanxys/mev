@@ -82,7 +82,9 @@
       <!-- Menu body -->
       <section class="menu_body">
         <section>
-          sliders
+          <div v-for="weightConfig in weightConfigs">
+          {{weightConfig.name}}: <input type="range">
+          </div>
         </section>
       </section>
     </div>
