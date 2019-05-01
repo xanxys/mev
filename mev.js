@@ -112,7 +112,8 @@ class MevApplication {
             },
             watch: {
                 vrmRoot: function (newValue, oldValue) {
-                    if (!this.avatarHeight) {
+                    if (oldValue === null) {
+                        this._setEmotion(this.currentEmotionPresetName);
                         this._computeAvatarHeight();
                     }
                 },
@@ -124,7 +125,27 @@ class MevApplication {
                         this.showEmotionPane = true;
                     } else {
                         this.currentEmotionPresetName = emotionPresetName;
+                        this._setEmotion(emotionPresetName);
                     }
+                },
+                _setEmotion(presetName) {
+                    const nameToBlendshape = new Map(this.blendshapes.map(bs => [bs.name, bs]));
+                    const blendshape = nameToBlendshape.get(presetName);
+                    console.log("Set emotion", this.vrmRoot, blendshape);
+
+                    // Reset all morph.
+                    this.vrmRoot.traverse(obj => {
+                        if (obj.type === 'SkinnedMesh' && obj.morphTargetInfluences) {
+                            obj.morphTargetInfluences.fill(0);
+                        }
+                    });
+
+                    // Set new morph set.
+                    blendshape.weightConfigs.forEach(weightConfig => {
+                        weightConfig.meshRef.children.forEach(skinnedMesh => {
+                            skinnedMesh.morphTargetInfluences[weightConfig.morphIndex] = 1.0;
+                        });
+                    });
                 },
                 calculateFinalSizeAsync: function () {
                     serializeVrm(this.vrmRoot).then(glbBuffer => {
@@ -177,7 +198,7 @@ class MevApplication {
                 showMainPane: function () {
                     return !this.showEmotionPane && this.vrmRoot !== null;
                 },
-                isLoading: function() {
+                isLoading: function () {
                     return this.vrmRoot === null && this.startedLoading;
                 },
 
@@ -211,8 +232,10 @@ class MevApplication {
                                 morphIndexToName[targetMesh.morphTargetDictionary[key]] = key;
                             });
                             return {
-                                m: bind.mesh.name,
+                                meshName: bind.mesh.name,
+                                meshRef: bind.mesh,
                                 morphName: morphIndexToName[bind.index],
+                                morphIndex: bind.index,
                                 weight: bind.weight,
                             };
                         });

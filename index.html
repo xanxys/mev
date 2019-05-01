@@ -86,10 +86,15 @@
     <div>
       <!-- Menu body -->
       <section class="menu_body">
+        <section v-if="weightConfigs.length === 0">
+          表情が設定されていません。
+        </section>
         <section>
           <div v-for="weightConfig in weightConfigs">
-          {{weightConfig.morphName}}<br/>
+          {{weightConfig.morphName}}: {{weightConfig.weight}}
+          <!-- TODO: Implement editing
           <input type="range" :value="weightConfig.weight">
+          -->
           </div>
         </section>
       </section>
