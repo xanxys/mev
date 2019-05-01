@@ -319,7 +319,8 @@ class MevApplication {
                             const numVerts = mesh.geometry.index === null ? mesh.geometry.attributes.position.count : mesh.geometry.index.count;
                             const numTris = Math.floor(numVerts / 3);
                             return {
-                                visibility: (mesh.visible ? "☒" : "☐") + (blendShapeMeshes.has(mesh) ? "BS" : ""),
+                                visibility: mesh.visible,
+                                //+ (blendShapeMeshes.has(mesh) ? "BS" : ""),
                                 name: mesh.name,
                                 shaderName: mesh.material.shaderName,
                                 textureUrl: (!mesh.material.map || !mesh.material.map.image) ? null : MevApplication._convertImageToDataUrlWithHeight(mesh.material.map.image, 48),
