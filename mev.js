@@ -345,7 +345,9 @@ class MevApplication {
     loadFbxOrVrm(vrmFile) {
         const isFbx = vrmFile.name.toLowerCase().endsWith('.fbx');
         this.vm.startedLoading = true;
-        this.vm.avatarName = vrmFile.name;
+
+        const vrmExtIndex = vrmFile.name.toLowerCase().lastIndexOf(".vrm");
+        this.vm.avatarName = vrmExtIndex >= 0 ? vrmFile.name.substr(0, vrmExtIndex) : vrmFile.name;
 
         // three-vrm currently doesn't have .parse() method, need to convert to data URL...
         // (inefficient)
