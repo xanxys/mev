@@ -71,7 +71,7 @@ class MevApplication {
 
                 // Main Pane
                 avatarName: "",
-                avatarHeight: 0,  // for some reason, this property is computed every frame if we use computed property
+                avatarHeight: "",
                 currentEmotion: "Neutral",
                 finalVrmSizeApprox: "",
 
@@ -80,7 +80,7 @@ class MevApplication {
             },
             watch: {
                 vrmRoot: function (newValue, oldValue) {
-                    if (this.avatarHeight === 0) {
+                    if (!this.avatarHeight) {
                         this._computeAvatarHeight();
                     }
                 },
@@ -127,7 +127,7 @@ class MevApplication {
                     if (this.vrmRoot === null) {
                         return "";
                     }
-                    return (new THREE.Box3().setFromObject(this.vrmRoot)).getSize(new THREE.Vector3()).y.toFixed(2) + "m";
+                    this.avatarHeight = (new THREE.Box3().setFromObject(this.vrmRoot)).getSize(new THREE.Vector3()).y.toFixed(2) + "m";
                 }
             },
             computed: {
