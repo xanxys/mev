@@ -71,11 +71,19 @@ class MevApplication {
 
                 // Main Pane
                 avatarName: "",
+                avatarHeight: 0,  // for some reason, this property is computed every frame if we use computed property
                 currentEmotion: "Neutral",
                 finalVrmSizeApprox: "",
 
                 // Emotion-Edit Pane
                 editingEmotionLabel: "",
+            },
+            watch: {
+                vrmRoot: function (newValue, oldValue) {
+                    if (this.avatarHeight === 0) {
+                        this._computeAvatarHeight();
+                    }
+                },
             },
             methods: {
                 clickEmotion: function (emotionLabel) {
@@ -112,6 +120,15 @@ class MevApplication {
                 clickBackButton: function () {
                     this.showEmotionPane = false;
                 },
+                _computeAvatarHeight: function () {
+                    // For some reason, according to profiler,
+                    // this method is computed every frame unlike others (e.g. finalVrmTris, blendshapes, parts).
+                    // Maybe because this is using this.vrmRoot directly, and some filed in vrmRoot is changing every frame?
+                    if (this.vrmRoot === null) {
+                        return "";
+                    }
+                    return (new THREE.Box3().setFromObject(this.vrmRoot)).getSize(new THREE.Vector3()).y.toFixed(2) + "m";
+                }
             },
             computed: {
                 // Toolbar & global pane state.
@@ -130,12 +147,6 @@ class MevApplication {
                 },
 
                 // Main page state "converter".
-                avatarHeight: function () {
-                    if (this.vrmRoot === null) {
-                        return "";
-                    }
-                    return (new THREE.Box3().setFromObject(this.vrmRoot).getSize(new THREE.Vector3()).y).toFixed(2) + "m";
-                },
                 finalVrmTris: function () {
                     if (this.vrmRoot === null) {
                         return "";
