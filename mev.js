@@ -482,21 +482,21 @@ function setupStartDialog(onFileSelected) {
     const start_dialog = new Vue({
         el: "#vue_start_dialog",
         data: {
-            bgColor: "transparent",
+            isDragover: false,
         },
         methods: {
             fileDragover: function (event) {
                 event.preventDefault();
                 event.dataTransfer.dropEffect = 'copy';
-                this.bgColor = "#f5f5f5"; // TODO: Move to HTML or CSS
+                this.isDragover = true;
             },
             fileDragleave: function (event) {
                 event.preventDefault();
-                this.bgColor = "transparent";
+                this.isDragover = false;
             },
             fileDrop: function (event) {
                 event.preventDefault();
-                this.bgColor = "transparent";
+                this.isDragover = false;
                 this._setFileAndExit(event.dataTransfer.files[0]);
             },
             fileSelect: function (event) {

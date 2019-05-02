@@ -17,7 +17,7 @@
     <section style="text-align: center">
       <div id="dropzone"
         style="height: 100px; border-style:dotted; border-color: grey; border-width: 3px; text-align: center; padding-top: 24px"
-        v-bind:style="{backgroundColor: bgColor}" @dragover="fileDragover" @dragleave="fileDragleave" @drop="fileDrop">
+        :class="{dragover: isDragover}" @dragover="fileDragover" @dragleave="fileDragleave" @drop="fileDrop">
         <img src="ui_asset/baseline-open_in_browser-24px.svg" width="48px" height="48px" style="filter:contrast(10%)">
         <br />
         ファイルをドロップする
