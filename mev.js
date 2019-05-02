@@ -135,15 +135,22 @@ class MevApplication {
 
                     // Reset all morph.
                     this.vrmRoot.traverse(obj => {
-                        if (obj.type === 'SkinnedMesh' && obj.morphTargetInfluences) {
+                        if ((obj.type === "Mesh" || obj.type === "SkinnedMesh") && obj.morphTargetInfluences) {
                             obj.morphTargetInfluences.fill(0);
                         }
                     });
 
                     // Set new morph set.
                     blendshape.weightConfigs.forEach(weightConfig => {
-                        weightConfig.meshRef.children.forEach(skinnedMesh => {
-                            skinnedMesh.morphTargetInfluences[weightConfig.morphIndex] = 1.0;
+                        weightConfig.meshRef.traverse(obj => {
+                            console.log(obj.type);
+                            if (obj.type != "Mesh" && obj.type !== "SkinnedMesh") {
+                                return;
+                            }
+                            if (!obj.morphTargetInfluences) {
+                                return;
+                            }
+                            obj.morphTargetInfluences[weightConfig.morphIndex] = weightConfig.weight * 0.01;  // % -> actual number
                         });
                     });
                 },

@@ -132,7 +132,7 @@ export function serializeVrm(vrmRoot) {
                 // Looks suspicious. Why skins instead of meshes?
                 const skinId = gltfResult.skins.findIndex(e => e === meshRef[0]);
                 if (skinId < 0) {
-                    console.warn("mapNode failed (not found in skins)", meshRef);
+                    console.error("mapNode failed (not found in skins)", meshRef);
                     return 0;
                 } else {
                     return skinId;
@@ -144,7 +144,7 @@ export function serializeVrm(vrmRoot) {
                         return texId;
                     }
                 }
-                console.warn("mapTexture failed (not found)", texRef);
+                console.error("mapTexture failed (not found)", texRef);
                 return 0;
             },
         });
@@ -191,9 +191,9 @@ export function parseVrm(gltf) {
                 return;
             }
 
-            // TODO: Properly set morphTargets bool
+            // Setting morphTargets=true is inefficient if it's not morphable, but always works.
             const mat = new vrm_mat.VRMShaderMaterial(
-                { morphTargets: false, skinning: true }, matProp, textures);
+                { morphTargets: true, skinning: true }, matProp, textures);
 
             // TODO: This is inefficient. Fix.
             gltf.scene.traverse(obj => {
