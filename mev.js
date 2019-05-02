@@ -46,6 +46,46 @@ const EMOTION_PRESET_NAME_TO_LABEL = {
     "lookdown": "目↓",
 };
 
+
+/**
+ * Load FBX and try to convert to proper VRM (ideally, same as loadVrm but currently conversion is very broken)
+ * @param {ArrayBuffer} fileContent 
+ * @return {Promise<THREE.Object3D>} vrmRoot
+ */
+function importFbxAsVrm(fileContent) {
+    return new Promise((resolve, reject) => {
+        const fbxLoader = new THREE.FBXLoader();
+        fbxLoader.load(
+            fileContent,
+            fbx => {
+                console.log("FBX loaded", fbx);
+                const bb_size = new THREE.Box3().setFromObject(fbx).getSize();
+                const max_len = Math.max(bb_size.x, bb_size.y, bb_size.z);
+                // heuristics: Try to fit in 0.1m~9.9m. (=log10(max_len * K) should be 0.XXX)
+                // const scale_factor = Math.pow(10, -Math.floor(Math.log10(max_len)));
+                //console.log("FBX:size_estimator: max_len=", max_len, "scale_factor=", scale_factor);
+                const scale_factor = 0.01;
+                fbx.scale.set(scale_factor, scale_factor, scale_factor);
+                fbx.rotateOnWorldAxis(new THREE.Vector3(0, 1, 0), Math.PI);
+
+                // Fix-up materials
+                fbx.traverse(obj => {
+                    if (obj.type === 'SkinnedMesh' || obj.type === 'Mesh') {
+                        console.log("FBX-Fix-Material", obj.material);
+                        if (obj.material instanceof Array) {
+                            obj.material = obj.material.map(m => new THREE.MeshLambertMaterial());
+                        } else {
+                            obj.material = new THREE.MeshLambertMaterial();
+                        }
+                    }
+                });
+                console.log("FBX-tree", objectToTreeDebug(fbx));
+                resolve(fbx);
+            }
+        );
+    });
+}
+
 /**
  * Handle main editor UI & all state. Start dialog is NOT part of this class.
  * 
@@ -139,6 +179,10 @@ class MevApplication {
                             obj.morphTargetInfluences.fill(0);
                         }
                     });
+
+                    if (!blendshape) {
+                        return;
+                    }
 
                     // Set new morph set.
                     blendshape.weightConfigs.forEach(weightConfig => {
@@ -305,7 +349,8 @@ class MevApplication {
                 },
                 currentWeightConfigs: function () {
                     const nameToBlendshape = new Map(this.blendshapes.map(bs => [bs.name, bs]));
-                    return nameToBlendshape.get(this.currentEmotionPresetName).weightConfigs;
+                    const blendshape = nameToBlendshape.get(this.currentEmotionPresetName);
+                    return blendshape ? blendshape.weightConfigs : [];
                 },
                 parts: function () {
                     if (this.vrmRoot === null) {
@@ -364,52 +409,23 @@ class MevApplication {
         const scene = this.scene;
         reader.addEventListener('load', () => {
             if (isFbx) {
-                const fbxLoader = new THREE.FBXLoader();
-                fbxLoader.load(
-                    reader.result,
-                    fbx => {
-                        console.log("FBX loaded", fbx);
-                        const bb_size = new THREE.Box3().setFromObject(fbx).getSize();
-                        const max_len = Math.max(bb_size.x, bb_size.y, bb_size.z);
-                        // heuristics: Try to fit in 0.1m~9.9m. (=log10(max_len * K) should be 0.XXX)
-                        // const scale_factor = Math.pow(10, -Math.floor(Math.log10(max_len)));
-                        //console.log("FBX:size_estimator: max_len=", max_len, "scale_factor=", scale_factor);
-                        const scale_factor = 0.01;
-                        fbx.scale.set(scale_factor, scale_factor, scale_factor);
-                        fbx.rotateOnWorldAxis(new THREE.Vector3(0, 1, 0), Math.PI);
-
-                        // Fix-up materials
-                        fbx.traverse(obj => {
-                            if (obj.type === 'SkinnedMesh' || obj.type === 'Mesh') {
-                                console.log("FBX-Fix-Material", obj.material);
-                                if (obj.material instanceof Array) {
-                                    obj.material = obj.material.map(m => new THREE.MeshLambertMaterial());
-                                } else {
-                                    obj.material = new THREE.MeshLambertMaterial();
-                                }
-                            }
-                        });
-                        console.log("FBX-tree", objectToTreeDebug(fbx));
-                        scene.add(fbx);
-                        app.vrmRoot = fbx;
-                        app.vm.vrmRoot = fbx;
-                        setTimeout(() => {
-                            scene.add(app.createTreeVisualizer(fbx));
-                            app.recalculateFinalSize();
-                        }, 100);
-                    }
-                );
+                importFbxAsVrm(reader.result).then(fbx => {
+                    scene.add(fbx);
+                    app.vrmRoot = fbx;
+                    app.vm.vrmRoot = fbx;
+                    setTimeout(() => {
+                        scene.add(app.createTreeVisualizer(fbx));
+                        app.recalculateFinalSize();
+                    }, 100);
+                });
                 return;
             }
 
             const gltfLoader = new THREE.GLTFLoader();
-
             gltfLoader.load(
                 reader.result,
                 gltfJson => {
-                    console.log("gltf loaded", gltfJson);
                     parseVrm(gltfJson).then(vrmObj => {
-                        //console.log("VRM-tree", objectToTreeDebug(vrmObj));
                         scene.add(vrmObj);
                         scene.add(app.createTreeVisualizer(vrmObj));
                         app.vrmRoot = vrmObj;
