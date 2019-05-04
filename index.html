@@ -42,7 +42,7 @@
       <h1 style="display:inline-block">{{toolbarTitle}}</h1>
     </section>
 
-    <menu-section-emotion v-if="showEmotionPane" :weight-configs="currentWeightConfigs">
+    <menu-section-emotion v-if="showEmotionPane" :preset-name="currentEmotionPresetName" :weight-configs="currentWeightConfigs" :blendshape-master="blendshapeMaster">
     </menu-section-emotion>
 
     <section id="loading_progress" style="padding: 8px" v-if="isLoading">
@@ -98,10 +98,8 @@
         </section>
         <section>
           <div v-for="weightConfig in weightConfigs">
-          {{weightConfig.morphName}}: {{weightConfig.weight}}
-          <!-- TODO: Implement editing
-          <input type="range" :value="weightConfig.weight">
-          -->
+          {{weightConfig.morphName}}<br/>
+          <input type="range" min="0" max="100" @input="onChangeWeight($event, weightConfig)" @change="onChangeWeight($event, weightConfig)" :value="weightConfig.weight * 100">  {{weightConfig.weight}}
           </div>
         </section>
       </section>

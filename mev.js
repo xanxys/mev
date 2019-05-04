@@ -17,6 +17,23 @@ function objectToTreeDebug(obj) {
 }
 
 /**
+ * 
+ * @param {THREE.Object3D} root 
+ * @param {Function<THREE.Object3D>} fn 
+ */
+function traverseMorphableMesh(root, fn) {
+    root.traverse(obj => {
+        if (obj.type !== "Mesh" && obj.type !== "SkinnedMesh") {
+            return;
+        }
+        if (!obj.morphTargetInfluences) {
+            return;
+        }
+        fn(obj);
+    });
+}
+
+/**
  * Flatten array of array into an array.
  * `[[1, 2], [3]] -> [1, 2, 3]`
  */
@@ -90,9 +107,11 @@ function importFbxAsVrm(fileContent) {
  * Handle main editor UI & all state. Start dialog is NOT part of this class.
  * 
  * Design:
- *  - Canonical VRM data = THREE.Object3D.
+ *  - Canonical VRM data = THREE.Object3D & VRM-extension
  *  - Converter = Converts "VRM data" into ViewModel quickly, realtime.
  *  - Vue data = ViewModel. Write-operation directly goes to VRM data (and notifies converter).
+ * 
+ * Weight: 0~1.0(vue.js/three.js) 0~100(UI/Unity/VRM). These are typical values, they can be negative or 100+.
  */
 // TODO: For some reason, computed methods are called every frame. Maybe some internal property in three.js is changing
 // every frame? this is not good for performance, but is acceptable for now...
@@ -131,11 +150,29 @@ class MevApplication {
         Vue.component(
             "menu-section-emotion", {
                 template: "#menu_section_emotion",
-                props: ["weightConfigs"],
+                props: ["presetName", "weightConfigs", "blendshapeMaster"],
                 methods: {
+                    onChangeWeight(event, weightConfig) {
+                        const newWeight = event.srcElement.valueAsNumber * 0.01;
+
+                        traverseMorphableMesh(weightConfig.meshRef, mesh => {
+                            mesh.morphTargetInfluences[weightConfig.morphIndex] = newWeight;
+                        });
+                        this.blendshapeMaster.blendShapeGroups.forEach(bs => {
+                            if (bs.presetName !== this.presetName) {
+                                return;
+                            }
+                            bs.binds.forEach(bind => {
+                                if (bind.mesh === weightConfig.meshRef && bind.index === weightConfig.morphIndex) {
+                                    bind.weight = newWeight * 100;
+                                }
+                            });
+                        });
+                    },
                 },
             },
         );
+
         this.vm = new Vue({
             el: '#vue_menu',
             data: {
@@ -174,11 +211,7 @@ class MevApplication {
                     console.log("Set emotion", this.vrmRoot, blendshape);
 
                     // Reset all morph.
-                    this.vrmRoot.traverse(obj => {
-                        if ((obj.type === "Mesh" || obj.type === "SkinnedMesh") && obj.morphTargetInfluences) {
-                            obj.morphTargetInfluences.fill(0);
-                        }
-                    });
+                    traverseMorphableMesh(this.vrmRoot, mesh => mesh.morphTargetInfluences.fill(0));
 
                     if (!blendshape) {
                         return;
@@ -186,15 +219,8 @@ class MevApplication {
 
                     // Set new morph set.
                     blendshape.weightConfigs.forEach(weightConfig => {
-                        weightConfig.meshRef.traverse(obj => {
-                            console.log(obj.type);
-                            if (obj.type != "Mesh" && obj.type !== "SkinnedMesh") {
-                                return;
-                            }
-                            if (!obj.morphTargetInfluences) {
-                                return;
-                            }
-                            obj.morphTargetInfluences[weightConfig.morphIndex] = weightConfig.weight * 0.01;  // % -> actual number
+                        traverseMorphableMesh(weightConfig.meshRef, mesh => {
+                            mesh.morphTargetInfluences[weightConfig.morphIndex] = weightConfig.weight * 0.01;  // % -> actual number
                         });
                     });
                 },
@@ -269,6 +295,9 @@ class MevApplication {
                         }
                     });
                     return "△" + stats.numTris;
+                },
+                blendshapeMaster: function () {
+                    return this.vrmRoot.vrmExt.blendShapeMaster;
                 },
                 // Deprecated: Use emotionGroups
                 blendshapes: function () {
