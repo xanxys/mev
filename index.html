@@ -99,7 +99,7 @@
         <section>
           <div v-for="weightConfig in weightConfigs">
           {{weightConfig.morphName}}<br/>
-          <input type="range" min="0" max="100" @input="onChangeWeight($event, weightConfig)" @change="onChangeWeight($event, weightConfig)" :value="weightConfig.weight * 100">  {{weightConfig.weight}}
+          <input type="range" min="0" max="100" step="1" @input="onChangeWeight($event, weightConfig)" @change="onChangeWeight($event, weightConfig)" :value="weightConfig.weight">  {{weightConfig.weight.toFixed(0)}}
           </div>
         </section>
       </section>
