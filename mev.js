@@ -130,6 +130,13 @@ class MevApplication {
         this.renderer.setSize(width, height);
         this.renderer.antialias = true;
         canvasInsertionParent.appendChild(this.renderer.domElement);
+        window.onresize = _event => {
+            const w = window.innerWidth;
+            const h = window.innerHeight;
+            this.renderer.setSize(w, h);
+            this.camera.aspect = w / h;
+            this.camera.updateProjectionMatrix();
+        };
 
         this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
 
@@ -197,7 +204,7 @@ class MevApplication {
                 },
             },
             methods: {
-                refreshPage: function() {
+                refreshPage: function () {
                     location.reload();
                 },
                 clickEmotion: function (emotionPresetName) {
