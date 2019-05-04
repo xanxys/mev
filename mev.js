@@ -1,6 +1,8 @@
 // ES6
-import { parseVrm, serializeVrm } from './vrm.js';
-import { setupStartDialog } from './components/start-dialog.js';
+import { parseVrm, serializeVrm } from '/vrm.js';
+import { setupStartDialog } from '/components/start-dialog.js';
+import { } from '/components/menu-section-emotion.js';
+import { traverseMorphableMesh, flatten } from '/mev-util.js';
 
 /**
  * Converts {THREE.Object3D} into human-readable object tree.
@@ -16,30 +18,6 @@ function objectToTreeDebug(obj) {
     return JSON.stringify(convert_node(obj), null, 2);
 }
 
-/**
- * 
- * @param {THREE.Object3D} root 
- * @param {Function<THREE.Object3D>} fn 
- */
-function traverseMorphableMesh(root, fn) {
-    root.traverse(obj => {
-        if (obj.type !== "Mesh" && obj.type !== "SkinnedMesh") {
-            return;
-        }
-        if (!obj.morphTargetInfluences) {
-            return;
-        }
-        fn(obj);
-    });
-}
-
-/**
- * Flatten array of array into an array.
- * `[[1, 2], [3]] -> [1, 2, 3]`
- */
-function flatten(arr) {
-    return [].concat.apply([], arr);
-}
 
 const EMOTION_PRESET_NAME_TO_LABEL = {
     "neutral": "標準",
@@ -153,33 +131,6 @@ class MevApplication {
 
         // Overlay UI
         const app = this;
-        const scene = this.scene;
-        Vue.component(
-            "menu-section-emotion", {
-                template: "#menu_section_emotion",
-                props: ["presetName", "weightConfigs", "blendshapeMaster"],
-                methods: {
-                    onChangeWeight(event, weightConfig) {
-                        const newWeight = event.srcElement.valueAsNumber * 0.01;
-
-                        traverseMorphableMesh(weightConfig.meshRef, mesh => {
-                            mesh.morphTargetInfluences[weightConfig.morphIndex] = newWeight;
-                        });
-                        this.blendshapeMaster.blendShapeGroups.forEach(bs => {
-                            if (bs.presetName !== this.presetName) {
-                                return;
-                            }
-                            bs.binds.forEach(bind => {
-                                if (bind.mesh === weightConfig.meshRef && bind.index === weightConfig.morphIndex) {
-                                    bind.weight = newWeight * 100;
-                                }
-                            });
-                        });
-                    },
-                },
-            },
-        );
-
         this.vm = new Vue({
             el: '#vue_menu',
             data: {
@@ -306,6 +257,19 @@ class MevApplication {
                         }
                     });
                     return "△" + stats.numTris;
+                },
+                allWeightCandidates: function () {
+                    const candidates = [];
+                    traverseMorphableMesh(this.vrmRoot, mesh => {
+                        Object.keys(mesh.morphTargetDictionary).forEach(morphName => {
+                            candidates.push({
+                                mesh: mesh,
+                                morphIndex: mesh.morphTargetDictionary[morphName],
+                                morphName: morphName,
+                            });
+                        });
+                    });
+                    return candidates;
                 },
                 blendshapeMaster: function () {
                     return this.vrmRoot.vrmExt.blendShapeMaster;
