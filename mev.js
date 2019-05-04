@@ -180,6 +180,7 @@ class MevApplication {
                 startedLoading: false,
                 vrmRoot: null,
                 showEmotionPane: false,
+                isFatalError: false,
 
                 // Main Pane
                 avatarName: "",
@@ -196,6 +197,9 @@ class MevApplication {
                 },
             },
             methods: {
+                refreshPage: function() {
+                    location.reload();
+                },
                 clickEmotion: function (emotionPresetName) {
                     if (this.currentEmotionPresetName === emotionPresetName) {
                         this.editingEmotionLabel = emotionPresetName;
@@ -276,7 +280,7 @@ class MevApplication {
                     return !this.showEmotionPane && this.vrmRoot !== null;
                 },
                 isLoading: function () {
-                    return this.vrmRoot === null && this.startedLoading;
+                    return this.startedLoading && (this.vrmRoot === null && !this.isFatalError);
                 },
 
                 // Main page state "converter".
@@ -464,7 +468,8 @@ class MevApplication {
                 },
                 () => { },
                 error => {
-                    console.log("gltf load failed", error);
+                    console.error("glTF load failed", error);
+                    app.vm.isFatalError = true;
                 });
         });
         reader.readAsDataURL(vrmFile);

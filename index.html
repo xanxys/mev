@@ -48,6 +48,11 @@
     <section id="loading_progress" style="padding: 8px" v-if="isLoading">
     </section>
 
+    <section v-if="isFatalError">
+      読み込みに失敗しました
+      <button @click="refreshPage">別のファイルを読み込み</button>
+    </section>
+
     <!-- Menu body (main) -->
     <section class="menu_body" v-if="showMainPane">
       <section>
