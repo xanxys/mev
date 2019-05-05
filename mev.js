@@ -2,22 +2,16 @@
 import { parseVrm, serializeVrm } from '/vrm.js';
 import { setupStartDialog } from '/components/start-dialog.js';
 import { } from '/components/menu-section-emotion.js';
-import { traverseMorphableMesh, flatten } from '/mev-util.js';
+import { traverseMorphableMesh, flatten, objectToTreeDebug } from '/mev-util.js';
 
-/**
- * Converts {THREE.Object3D} into human-readable object tree.
- */
-function objectToTreeDebug(obj) {
-    function convert_node(o) {
-        return {
-            name: o.name,
-            type: o.type,
-            children: o.children.map(convert_node),
-        };
-    }
-    return JSON.stringify(convert_node(obj), null, 2);
-}
-
+const EMOTION_PRESET_GROUPING = [
+    ["neutral"],
+    ["a", "i", "u", "e", "o"],
+    ["joy", "angry", "sorrow", "fun"],
+    ["blink", "blink_l", "blink_r"],
+    ["lookleft", "lookright", "lookup", "lookdown"],
+    // All unknown will go into the last group.
+];
 
 const EMOTION_PRESET_NAME_TO_LABEL = {
     "neutral": "標準",
@@ -40,7 +34,6 @@ const EMOTION_PRESET_NAME_TO_LABEL = {
     "lookup": "目↑",
     "lookdown": "目↓",
 };
-
 
 /**
  * Load FBX and try to convert to proper VRM (ideally, same as loadVrm but currently conversion is very broken)
@@ -101,7 +94,7 @@ class MevApplication {
         this.camera.position.set(0, 1, -3);
         this.camera.lookAt(0, 0.9, 0);
 
-        this.renderer = new THREE.WebGLRenderer({antialias: true});
+        this.renderer = new THREE.WebGLRenderer({ antialias: true });
         // Recommended gamma values from https://threejs.org/docs/#examples/loaders/GLTFLoader
         this.renderer.gammaOutput = true;  // If set, then it expects that all textures and colors need to be outputted in premultiplied gamma.
         this.renderer.gammaFactor = 2.2;
@@ -304,14 +297,6 @@ class MevApplication {
                     if (this.vrmRoot == null) {
                         return [];
                     }
-                    const EMOTION_PRESET_GROUPING = [
-                        ["neutral"],
-                        ["a", "i", "u", "e", "o"],
-                        ["joy", "angry", "sorrow", "fun"],
-                        ["blink", "blink_l", "blink_r"],
-                        ["lookleft", "lookright", "lookup", "lookdown"],
-                        // All unknown will go into the last group.
-                    ];
 
                     const knownNames = new Set(flatten(EMOTION_PRESET_GROUPING));
 
