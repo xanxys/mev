@@ -1,5 +1,7 @@
+
+
 /**
- * Similar to root.traverse(fn), but only executes fn when object is morphable.
+ * Similar to root.traverse(fn), but only executes fn when object is morphable mesh.
  * @param {THREE.Object3D} root 
  * @param {Function<THREE.Object3D>} fn 
  */
