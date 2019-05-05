@@ -1,4 +1,4 @@
-import { traverseMorphableMesh, blendshapeToEmotionId } from '/mev-util.js';
+import { traverseMorphableMesh, blendshapeToEmotionId } from '../mev-util.js';
 
 Vue.component(
     "menu-section-emotion", {

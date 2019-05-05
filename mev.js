@@ -1,8 +1,8 @@
 // ES6
-import { parseVrm, serializeVrm } from '/vrm.js';
-import { setupStartDialog } from '/components/start-dialog.js';
-import { } from '/components/menu-section-emotion.js';
-import { traverseMorphableMesh, flatten, objectToTreeDebug, blendshapeToEmotionId } from '/mev-util.js';
+import { parseVrm, serializeVrm } from './vrm.js';
+import { setupStartDialog } from './components/start-dialog.js';
+import { } from './components/menu-section-emotion.js';
+import { traverseMorphableMesh, flatten, objectToTreeDebug, blendshapeToEmotionId } from './mev-util.js';
 
 const EMOTION_PRESET_GROUPING = [
     ["neutral"],
