@@ -162,7 +162,6 @@ class MevApplication {
                 _setEmotion(emotionId) {
                     const nameToBlendshape = new Map(this.blendshapes.map(bs => [bs.id, bs]));
                     const blendshape = nameToBlendshape.get(emotionId);
-                    console.log("Set emotion", this.vrmRoot, blendshape);
 
                     // Reset all morph.
                     traverseMorphableMesh(this.vrmRoot, mesh => mesh.morphTargetInfluences.fill(0));
@@ -343,8 +342,6 @@ class MevApplication {
                     if (unknownGroup.length > 0) {
                         groups.push(unknownGroup);
                     }
-                    console.log("Emotion groups", groups);
-
                     return groups;
                 },
                 currentWeightConfigs: function () {
@@ -531,7 +528,10 @@ class MevApplication {
 
 function main() {
     const app = new MevApplication(window.innerWidth, window.innerHeight, document.body);
-    setupStartDialog(file => app.loadFbxOrVrm(file));
+    setupStartDialog(file => {
+        document.getElementById("vue_menu").style.display = "";
+        app.loadFbxOrVrm(file);
+    });
     app.animate();
 }
 
