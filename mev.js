@@ -101,12 +101,11 @@ class MevApplication {
         this.camera.position.set(0, 1, -3);
         this.camera.lookAt(0, 0.9, 0);
 
-        this.renderer = new THREE.WebGLRenderer();
+        this.renderer = new THREE.WebGLRenderer({antialias: true});
         // Recommended gamma values from https://threejs.org/docs/#examples/loaders/GLTFLoader
         this.renderer.gammaOutput = true;  // If set, then it expects that all textures and colors need to be outputted in premultiplied gamma.
         this.renderer.gammaFactor = 2.2;
         this.renderer.setSize(width, height);
-        this.renderer.antialias = true;
         canvasInsertionParent.appendChild(this.renderer.domElement);
         window.onresize = _event => {
             const w = window.innerWidth;
@@ -151,6 +150,7 @@ class MevApplication {
                     if (oldValue === null) {
                         this._setEmotion(this.currentEmotionPresetName);
                         this._computeAvatarHeight();
+                        app._createHeightIndicator(this.avatarHeight);
                     }
                 },
             },
@@ -217,9 +217,9 @@ class MevApplication {
                     // this method is computed every frame unlike others (e.g. finalVrmTris, blendshapes, parts).
                     // Maybe because this is using this.vrmRoot directly, and some filed in vrmRoot is changing every frame?
                     if (this.vrmRoot === null) {
-                        return "";
+                        return 0;
                     }
-                    this.avatarHeight = (new THREE.Box3().setFromObject(this.vrmRoot)).getSize(new THREE.Vector3()).y.toFixed(2) + "m";
+                    this.avatarHeight = (new THREE.Box3().setFromObject(this.vrmRoot)).getSize(new THREE.Vector3()).y;
                 }
             },
             computed: {
@@ -503,6 +503,33 @@ class MevApplication {
 
         stageObj.add(notchObj);
         return stageObj;
+    }
+
+    _createHeightIndicator(height) {
+        // Arrow
+        {
+            const geom = new THREE.Geometry();
+            geom.vertices.push(new THREE.Vector3(0, height, 0));
+            geom.vertices.push(new THREE.Vector3(-0.5, height, 0));
+            const mat = new THREE.LineBasicMaterial({ color: "black" });
+            this.scene.add(new THREE.LineSegments(geom, mat));
+        }
+
+        // Text
+        const canvas = document.createElement("canvas");
+        canvas.width = 128;
+        canvas.height = 128;
+        const ctx = canvas.getContext("2d");
+        ctx.fillColor = "black";
+        ctx.font = "32px Roboto";
+        ctx.fillText(height.toFixed(2) + "m", 0, 32);
+
+        const tex = new THREE.CanvasTexture(canvas);
+        const mat = new THREE.SpriteMaterial({ map: tex });
+        const sprite = new THREE.Sprite(mat);
+        sprite.scale.set(0.25, 0.25, 0.25);
+        sprite.position.set(-0.5, height - 0.05, 0);
+        this.scene.add(sprite);
     }
 }
 

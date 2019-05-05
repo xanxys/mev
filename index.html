@@ -58,10 +58,6 @@
     <!-- Menu body (main) -->
     <section class="menu_body" v-if="showMainPane">
       <section>
-        <div class="normal-text">身長: {{avatarHeight}}</div>
-      </section>
-
-      <section>
         <h2>表情</h2>
         <div v-for="emotionGroup in emotionGroups" style="padding-bottom: 8px">
           <span v-for="emotion in emotionGroup" class="chip-button"
