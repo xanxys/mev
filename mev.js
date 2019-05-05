@@ -424,7 +424,7 @@ class MevApplication {
                 gltfJson => {
                     parseVrm(gltfJson).then(vrmObj => {
                         scene.add(vrmObj);
-                        scene.add(app.createTreeVisualizer(vrmObj));
+                        //scene.add(app.createTreeVisualizer(vrmObj));
                         app.vrmRoot = vrmObj;
                         app.vm.vrmRoot = vrmObj;
                         app.recalculateFinalSize();
