@@ -2,9 +2,15 @@
 
 ブラウザで使えるVRMエディター(予定)。
 
+* 最新安定版: https://xanxys.github.io/mev/
+
 ## Roadmap
 
-* FBX importing
+1. VRM component (bone) editing
+
+2. VRM material editing (simple things: hue shift / resize / download / upload)
+
+3. FBX importing
 
 
 ## Development
