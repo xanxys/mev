@@ -2,7 +2,7 @@
 import { parseVrm, serializeVrm } from '/vrm.js';
 import { setupStartDialog } from '/components/start-dialog.js';
 import { } from '/components/menu-section-emotion.js';
-import { traverseMorphableMesh, flatten, objectToTreeDebug } from '/mev-util.js';
+import { traverseMorphableMesh, flatten, objectToTreeDebug, blendshapeToEmotionId } from '/mev-util.js';
 
 const EMOTION_PRESET_GROUPING = [
     ["neutral"],
@@ -135,13 +135,13 @@ class MevApplication {
                 // Main Pane
                 avatarName: "",
                 avatarHeight: "",
-                currentEmotionPresetName: "neutral",
+                currentEmotionId: "neutral",
                 finalVrmSizeApprox: "",
             },
             watch: {
                 vrmRoot: function (newValue, oldValue) {
                     if (oldValue === null) {
-                        this._setEmotion(this.currentEmotionPresetName);
+                        this._setEmotion(this.currentEmotionId);
                         this._computeAvatarHeight();
                         app._createHeightIndicator(this.avatarHeight);
                     }
@@ -151,18 +151,17 @@ class MevApplication {
                 refreshPage: function () {
                     location.reload();
                 },
-                clickEmotion: function (emotionPresetName) {
-                    if (this.currentEmotionPresetName === emotionPresetName) {
-                        this.editingEmotionLabel = emotionPresetName;
+                clickEmotion: function (emotionId) {
+                    if (this.currentEmotionId === emotionId) {
                         this.showEmotionPane = true;
                     } else {
-                        this.currentEmotionPresetName = emotionPresetName;
-                        this._setEmotion(emotionPresetName);
+                        this.currentEmotionId = emotionId;
+                        this._setEmotion(emotionId);
                     }
                 },
-                _setEmotion(presetName) {
-                    const nameToBlendshape = new Map(this.blendshapes.map(bs => [bs.name, bs]));
-                    const blendshape = nameToBlendshape.get(presetName);
+                _setEmotion(emotionId) {
+                    const nameToBlendshape = new Map(this.blendshapes.map(bs => [bs.id, bs]));
+                    const blendshape = nameToBlendshape.get(emotionId);
                     console.log("Set emotion", this.vrmRoot, blendshape);
 
                     // Reset all morph.
@@ -219,7 +218,9 @@ class MevApplication {
                 // Toolbar & global pane state.
                 toolbarTitle: function () {
                     if (this.showEmotionPane) {
-                        return "表情:" + EMOTION_PRESET_NAME_TO_LABEL[this.currentEmotionPresetName];
+                        const nameToBlendshape = new Map(this.blendshapes.map(bs => [bs.id, bs]));
+                        const blendshape = nameToBlendshape.get(this.currentEmotionId);
+                        return "表情:" + blendshape.label;
                     } else {
                         return this.avatarName;
                     }
@@ -288,7 +289,9 @@ class MevApplication {
                             };
                         });
                         return {
-                            name: bs.presetName,
+                            id: blendshapeToEmotionId(bs),
+                            label: bs.presetName !== "unknown" ? EMOTION_PRESET_NAME_TO_LABEL[bs.presetName] : bs.name,
+                            presetName: bs.presetName,  // "unknown" can appear more than once
                             weightConfigs: binds,
                         };
                     });
@@ -300,19 +303,20 @@ class MevApplication {
 
                     const knownNames = new Set(flatten(EMOTION_PRESET_GROUPING));
 
-                    const nameToBlendshape = new Map(this.blendshapes.map(bs => [bs.name, bs]));
+                    const nameToBlendshape = new Map(this.blendshapes.map(bs => [bs.presetName, bs]));
                     const groups = EMOTION_PRESET_GROUPING.map(defaultGroupDef => {
                         return defaultGroupDef.map(name => {
                             if (nameToBlendshape.has(name)) {
+                                const bs = nameToBlendshape.get(name);
                                 return {
-                                    presetName: name,
-                                    label: EMOTION_PRESET_NAME_TO_LABEL[name],
-                                    weightConfigs: nameToBlendshape.get(name).weightConfigs,
+                                    id: bs.id,
+                                    label: bs.label,
+                                    weightConfigs: bs.weightConfigs,
                                 };
                             } else {
                                 console.warn("The VRM is missing standard blendshape preset: " + name + ". Creating new one.");
                                 return {
-                                    presetName: name,
+                                    id: name,
                                     label: EMOTION_PRESET_NAME_TO_LABEL[name],
                                     weightConfigs: [],
                                 };
@@ -322,23 +326,30 @@ class MevApplication {
                     );
                     const unknownGroup = [];
                     this.blendshapes.forEach(bs => {
-                        if (!knownNames.has(bs.name)) {
-                            unknownGroup.push({
-                                presetName: bs.name,
-                                label: bs.name,
-                                weightConfigs: bs.weightConfigs,
-                            });
+                        if (knownNames.has(bs.presetName)) {
+                            return;
                         }
+                        // All unknown blendshape presetName must be unknown.
+                        if (bs.presetName !== "unknown") {
+                            console.warn("Non-comformant emotion preset name found, treating as 'unknown'", bs.presetName)
+                        }
+
+                        unknownGroup.push({
+                            id: bs.id,
+                            label: bs.label,
+                            weightConfigs: bs.weightConfigs,
+                        });
                     });
                     if (unknownGroup.length > 0) {
                         groups.push(unknownGroup);
                     }
+                    console.log("Emotion groups", groups);
 
                     return groups;
                 },
                 currentWeightConfigs: function () {
-                    const nameToBlendshape = new Map(this.blendshapes.map(bs => [bs.name, bs]));
-                    const blendshape = nameToBlendshape.get(this.currentEmotionPresetName);
+                    const nameToBlendshape = new Map(this.blendshapes.map(bs => [bs.id, bs]));
+                    const blendshape = nameToBlendshape.get(this.currentEmotionId);
                     return blendshape ? blendshape.weightConfigs : [];
                 },
                 parts: function () {

@@ -1,9 +1,9 @@
-import { traverseMorphableMesh } from '/mev-util.js';
+import { traverseMorphableMesh, blendshapeToEmotionId } from '/mev-util.js';
 
 Vue.component(
     "menu-section-emotion", {
         template: "#menu_section_emotion",
-        props: ["presetName", "allWeightCandidates", "weightConfigs", "blendshapeMaster"],
+        props: ["emotionId", "allWeightCandidates", "weightConfigs", "blendshapeMaster"],
         data: function () {
             return {
                 searching: false,
@@ -18,7 +18,7 @@ Vue.component(
                     mesh.morphTargetInfluences[weightConfig.morphIndex] = newWeight;
                 });
                 this.blendshapeMaster.blendShapeGroups.forEach(bs => {
-                    if (bs.presetName !== this.presetName) {
+                    if (blendshapeToEmotionId(bs) !== this.emotionId) {
                         return;
                     }
                     bs.binds.forEach(bind => {
@@ -37,7 +37,7 @@ Vue.component(
             },
             addWeight: function (weightCandidate) {
                 this.blendshapeMaster.blendShapeGroups.forEach(bs => {
-                    if (bs.presetName !== this.presetName) {
+                    if (bs.id !== this.emotionId) {
                         return;
                     }
                     bs.binds.push({

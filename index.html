@@ -42,7 +42,7 @@
       <h1 style="display:inline-block">{{toolbarTitle}}</h1>
     </section>
 
-    <menu-section-emotion v-if="showEmotionPane" :preset-name="currentEmotionPresetName"
+    <menu-section-emotion v-if="showEmotionPane" :emotion-id="currentEmotionId"
       :all-weight-candidates="allWeightCandidates" :weight-configs="currentWeightConfigs"
       :blendshape-master="blendshapeMaster">
     </menu-section-emotion>
@@ -61,8 +61,8 @@
         <h2>表情</h2>
         <div v-for="emotionGroup in emotionGroups" style="padding-bottom: 8px">
           <span v-for="emotion in emotionGroup" class="chip-button"
-            :class="{'chip-button-active': emotion.presetName === currentEmotionPresetName}"
-            @click="clickEmotion(emotion.presetName)">{{emotion.label}}</span>
+            :class="{'chip-button-active': emotion.id === currentEmotionId}"
+            @click="clickEmotion(emotion.id)">{{emotion.label}}</span>
         </div>
       </section>
 

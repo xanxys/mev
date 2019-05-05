@@ -36,3 +36,11 @@ export function objectToTreeDebug(obj) {
 export function flatten(arr) {
     return [].concat.apply([], arr);
 }
+
+/**
+ * 
+ * @param {Object} blendshape in VRM extension
+ */
+export function blendshapeToEmotionId(blendshape) {
+    return blendshape.presetName !== "unknown" ? blendshape.presetName : blendshape.name;
+}
