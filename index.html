@@ -111,9 +111,12 @@
         </section>
       </section>
       <section style="padding: 8px">
-        <button @click="clickAddWeight">追加</button>
-        <input type="text" v-model="searchQuery">
-        <section style="max-height:300px; overflow-y:auto">
+        <button v-if="!searching" @click="clickAddWeight">追加</button>
+        <div v-if="searching">
+          <img src="ui_asset/baseline-search-24px.svg" width="24px" height="24px" style="vertical-align: middle">
+          <input type="text" v-model="searchQuery" ref="searchbox">
+        </div>
+        <section v-if="searching" style="max-height:300px; overflow-y:auto">
           <div v-for="weightCandidate in weightCandidates" @click="addWeight(weightCandidate)">
             {{weightCandidate.morphName}}
           </div>

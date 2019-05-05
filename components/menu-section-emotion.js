@@ -6,6 +6,7 @@ Vue.component(
         props: ["presetName", "allWeightCandidates", "weightConfigs", "blendshapeMaster"],
         data: function () {
             return {
+                searching: false,
                 searchQuery: "",
             };
         },
@@ -28,7 +29,11 @@ Vue.component(
                 });
             },
             clickAddWeight: function () {
-                // TODO: Display search box & focus.
+                this.searching = true;
+                // Need to delay, because searchbox is not created yet at this point.
+                this.$nextTick(() => {
+                    this.$refs.searchbox.focus();
+                });
             },
             addWeight: function (weightCandidate) {
                 this.blendshapeMaster.blendShapeGroups.forEach(bs => {
@@ -47,7 +52,8 @@ Vue.component(
             weightCandidates: function () {
                 const morphNamesInUse = new Set(this.weightConfigs.map(config => config.morphName));
                 return this.allWeightCandidates
-                    .filter(candidate => !morphNamesInUse.has(candidate.morphName) && candidate.morphName.indexOf(this.searchQuery) >= 0);
+                    .filter(candidate => !morphNamesInUse.has(candidate.morphName) &&
+                        candidate.morphName.toLowerCase().indexOf(this.searchQuery.toLowerCase()) >= 0);
             },
         }
     },
