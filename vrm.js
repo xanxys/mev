@@ -2,6 +2,20 @@
 import * as vrm_mat from './vrm-materials.js';
 
 /**
+ * Similar to root.traverse(fn), but only executes fn when object is a mesh.
+ * @param {THREE.Object3D} root 
+ * @param {Function<THREE.Object3D>} fn 
+ */
+function traverseMesh(root, fn) {
+    root.traverse(obj => {
+        if (obj.type !== "Mesh" && obj.type !== "SkinnedMesh") {
+            return;
+        }
+        fn(obj);
+    });
+}
+
+/**
  * Serialize glTF JSON & binary buffers into a single binary (GLB format).
  * Spec: https://github.com/KhronosGroup/glTF/blob/master/specification/2.0/README.md#glb-file-format-specification
  * @return {Promise<ArrayBuffer>}
@@ -132,7 +146,7 @@ export function serializeVrm(vrmRoot) {
                 // Looks suspicious. Why skins instead of meshes?
                 const skinId = gltfResult.skins.findIndex(e => e === meshRef[0]);
                 if (skinId < 0) {
-                    console.warn("mapNode failed (not found in skins)", meshRef);
+                    console.error("mapNode failed (not found in skins)", meshRef);
                     return 0;
                 } else {
                     return skinId;
@@ -144,7 +158,7 @@ export function serializeVrm(vrmRoot) {
                         return texId;
                     }
                 }
-                console.warn("mapTexture failed (not found)", texRef);
+                console.error("mapTexture failed (not found)", texRef);
                 return 0;
             },
         });
@@ -184,26 +198,39 @@ export function parseVrm(gltf) {
             mapTexture: id => textures[id],
         });
         const vrm = ref_to_real.convertVrm(gltf.parser.json.extensions.VRM);
-        console.log(vrm);
 
         gltf.parser.json.extensions.VRM.materialProperties.forEach(matProp => {
             if (matProp.shader === "VRM_USE_GLTFSHADER") {
                 return;
             }
 
-            // TODO: Properly set morphTargets bool
-            const mat = new vrm_mat.VRMShaderMaterial(
-                { morphTargets: false, skinning: true }, matProp, textures);
+            // Check if this material is being applied to morphable mesh or not.
+            const stats = {
+                numMesh: 0,
+                numMorphable: 0,
+            };
+            traverseMesh(gltf.scene, mesh => {
+                if (mesh.material.name !== matProp.name) {
+                    return;
+                }
+                stats.numMesh++;
+                if (mesh.morphTargetInfluences) {
+                    stats.numMorphable++;
+                }
+            });
+            if (stats.numMorphable > 0 && stats.numMorphable != stats.numMesh) {
+                console.warn("[me/v not implemented] Partially morphable mesh found. Treating as non-morphable", stats);
+                // TODO: Should split material in this case.
+            }
+            const morphable = stats.numMorphable > 0;
 
-            // TODO: This is inefficient. Fix.
-            gltf.scene.traverse(obj => {
-                if (obj.type !== 'Mesh' && obj.type !== 'SkinnedMesh') {
+            // Fix materials.
+            const mat = new vrm_mat.VRMShaderMaterial({ morphTargets: morphable, skinning: true }, matProp, textures);
+            traverseMesh(gltf.scene, mesh => {
+                if (mesh.material.name !== matProp.name) {
                     return;
                 }
-                if (obj.material.name !== matProp.name) {
-                    return;
-                }
-                obj.material = mat;
+                mesh.material = mat;
             });
         });
 

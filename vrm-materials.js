@@ -419,10 +419,6 @@ export class VRMShaderMaterial extends THREE.ShaderMaterial {
         }
         this.shaderName = shaderName;
 
-        if (this.name === 'F00_000_FaceEyeline_00_FACE') {
-            console.log("A");
-        }
-
         const parameters = converter.defaultParameters;
 
         Object.assign(this.uniforms, parameters.uniforms);
@@ -454,7 +450,6 @@ export class VRMShaderMaterial extends THREE.ShaderMaterial {
             converter.convert(this);
         }
 
-        console.log("SH", property, this);
         this.lights = parameters.lights;
         this.vertexShader = parameters.vertexShader;
         this.fragmentShader = parameters.fragmentShader;

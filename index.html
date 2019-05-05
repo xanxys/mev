@@ -5,6 +5,7 @@
   <meta chartset="utf-8">
   <title>me/v</title>
   <link rel="stylesheet" href="./mev.css" type="text/css">
+  <link rel="stylesheet" href="./components/start-dialog.css" type="text/css">
   <link rel="stylesheet" href="./third_party/checkbox.css" type="text/css">
   <link rel="stylesheet" href="./third_party/mprogress.min.css" type="text/css">
 </head>
@@ -17,14 +18,14 @@
     <section style="text-align: center">
       <div id="dropzone"
         style="height: 100px; border-style:dotted; border-color: grey; border-width: 3px; text-align: center; padding-top: 24px"
-        v-bind:style="{backgroundColor: bgColor}" @dragover="fileDragover" @dragleave="fileDragleave" @drop="fileDrop">
+        :class="{dragover: isDragover}" @dragover="fileDragover" @dragleave="fileDragleave" @drop="fileDrop">
         <img src="ui_asset/baseline-open_in_browser-24px.svg" width="48px" height="48px" style="filter:contrast(10%)">
         <br />
         ファイルをドロップする
       </div>
 
       または<br />
-      <input type="file" @change="fileSelect"></input>
+      <input type="file" @change="fileSelect">
     </section>
 
     <section>
@@ -32,7 +33,7 @@
     </section>
   </div>
 
-  <div style="position: absolute; left:8px; top: 8px; width: 240px" id="vue_menu">
+  <div style="position: absolute; left:8px; top: 8px; width: 240px; display: none" id="vue_menu">
     <!-- Toolbar -->
     <section class="menu_toolbar">
       <button class="toolbar_button" v-if="showBackButton" @click="clickBackButton">
@@ -41,24 +42,27 @@
       <h1 style="display:inline-block">{{toolbarTitle}}</h1>
     </section>
 
-    <menu-section-emotion v-if="showEmotionPane" :weight-configs="currentWeightConfigs">
+    <menu-section-emotion v-if="showEmotionPane" :emotion-id="currentEmotionId"
+      :all-weight-candidates="allWeightCandidates" :weight-configs="currentWeightConfigs"
+      :blendshape-master="blendshapeMaster">
     </menu-section-emotion>
 
     <section id="loading_progress" style="padding: 8px" v-if="isLoading">
     </section>
 
+    <section v-if="isFatalError">
+      読み込みに失敗しました
+      <button @click="refreshPage">別のファイルを読み込み</button>
+    </section>
+
     <!-- Menu body (main) -->
     <section class="menu_body" v-if="showMainPane">
-      <section>
-        <div class="normal-text">身長: {{avatarHeight}}</div>
-      </section>
-
       <section>
         <h2>表情</h2>
         <div v-for="emotionGroup in emotionGroups" style="padding-bottom: 8px">
           <span v-for="emotion in emotionGroup" class="chip-button"
-            :class="{'chip-button-active': emotion.presetName === currentEmotionPresetName}"
-            @click="clickEmotion(emotion.presetName)">{{emotion.label}}</span>
+            :class="{'chip-button-active': emotion.id === currentEmotionId}"
+            @click="clickEmotion(emotion.id)">{{emotion.label}}</span>
         </div>
       </section>
 
@@ -72,7 +76,7 @@
                   style="float: right; padding-right: 4px">{{part.numTris}}</span></span>
             </label>
             <br />
-            <img style="border: 1px; border-color:black" v-bind:src="part.textureUrl" height="48px" /><span
+            <img style="border: 1px; border-color:black" v-bind:src="part.textureUrl" /><span
               class="normal-text">{{part.shaderName}}</span>
           </div>
         </div>
@@ -97,10 +101,20 @@
         </section>
         <section>
           <div v-for="weightConfig in weightConfigs">
-          {{weightConfig.morphName}}: {{weightConfig.weight}}
-          <!-- TODO: Implement editing
-          <input type="range" :value="weightConfig.weight">
-          -->
+          {{weightConfig.morphName}}<br/>
+          <input type="range" min="0" max="100" step="1" @input="onChangeWeight($event, weightConfig)" @change="onChangeWeight($event, weightConfig)" :value="weightConfig.weight">  {{weightConfig.weight.toFixed(0)}}
+          </div>
+        </section>
+      </section>
+      <section style="padding: 8px">
+        <button v-if="!searching" @click="clickAddWeight">追加</button>
+        <div v-if="searching">
+          <img src="ui_asset/baseline-search-24px.svg" width="24px" height="24px" style="vertical-align: middle">
+          <input type="text" v-model="searchQuery" ref="searchbox">
+        </div>
+        <section v-if="searching" style="max-height:300px; overflow-y:auto">
+          <div v-for="weightCandidate in weightCandidates" @click="addWeight(weightCandidate)">
+            {{weightCandidate.morphName}}
           </div>
         </section>
       </section>

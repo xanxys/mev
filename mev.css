@@ -2,12 +2,6 @@
 
 @import url('https://fonts.googleapis.com/css?family=Noto+Sans+JP');
 @import url('https://fonts.googleapis.com/css?family=Roboto');
-#vue_start_dialog {
-    background-color: #ffffff;
-    padding: 8px;
-    box-shadow: 0px 0px 6px rgba(0, 0, 0, 0.4);
-}
-
 /* UI Component: Floating menu */
 
 #vue_menu {

@@ -1,28 +1,17 @@
 // ES6
-import { parseVrm, serializeVrm } from './vrm.js';
-import { vrmMaterials } from './vrm-materials.js';
+import { parseVrm, serializeVrm } from '/vrm.js';
+import { setupStartDialog } from '/components/start-dialog.js';
+import { } from '/components/menu-section-emotion.js';
+import { traverseMorphableMesh, flatten, objectToTreeDebug, blendshapeToEmotionId } from '/mev-util.js';
 
-/**
- * Converts {THREE.Object3D} into human-readable object tree.
- */
-function objectToTreeDebug(obj) {
-    function convert_node(o) {
-        return {
-            name: o.name,
-            type: o.type,
-            children: o.children.map(convert_node),
-        };
-    }
-    return JSON.stringify(convert_node(obj), null, 2);
-}
-
-/**
- * Flatten array of array into an array.
- * `[[1, 2], [3]] -> [1, 2, 3]`
- */
-function flatten(arr) {
-    return [].concat.apply([], arr);
-}
+const EMOTION_PRESET_GROUPING = [
+    ["neutral"],
+    ["a", "i", "u", "e", "o"],
+    ["joy", "angry", "sorrow", "fun"],
+    ["blink", "blink_l", "blink_r"],
+    ["lookleft", "lookright", "lookup", "lookdown"],
+    // All unknown will go into the last group.
+];
 
 const EMOTION_PRESET_NAME_TO_LABEL = {
     "neutral": "標準",
@@ -47,12 +36,53 @@ const EMOTION_PRESET_NAME_TO_LABEL = {
 };
 
 /**
+ * Load FBX and try to convert to proper VRM (ideally, same as loadVrm but currently conversion is very broken)
+ * @param {ArrayBuffer} fileContent 
+ * @return {Promise<THREE.Object3D>} vrmRoot
+ */
+function importFbxAsVrm(fileContent) {
+    return new Promise((resolve, reject) => {
+        const fbxLoader = new THREE.FBXLoader();
+        fbxLoader.load(
+            fileContent,
+            fbx => {
+                console.log("FBX loaded", fbx);
+                const bb_size = new THREE.Box3().setFromObject(fbx).getSize();
+                const max_len = Math.max(bb_size.x, bb_size.y, bb_size.z);
+                // heuristics: Try to fit in 0.1m~9.9m. (=log10(max_len * K) should be 0.XXX)
+                // const scale_factor = Math.pow(10, -Math.floor(Math.log10(max_len)));
+                //console.log("FBX:size_estimator: max_len=", max_len, "scale_factor=", scale_factor);
+                const scale_factor = 0.01;
+                fbx.scale.set(scale_factor, scale_factor, scale_factor);
+                fbx.rotateOnWorldAxis(new THREE.Vector3(0, 1, 0), Math.PI);
+
+                // Fix-up materials
+                fbx.traverse(obj => {
+                    if (obj.type === 'SkinnedMesh' || obj.type === 'Mesh') {
+                        console.log("FBX-Fix-Material", obj.material);
+                        if (obj.material instanceof Array) {
+                            obj.material = obj.material.map(m => new THREE.MeshLambertMaterial());
+                        } else {
+                            obj.material = new THREE.MeshLambertMaterial();
+                        }
+                    }
+                });
+                console.log("FBX-tree", objectToTreeDebug(fbx));
+                resolve(fbx);
+            }
+        );
+    });
+}
+
+/**
  * Handle main editor UI & all state. Start dialog is NOT part of this class.
  * 
  * Design:
- *  - Canonical VRM data = THREE.Object3D.
+ *  - Canonical VRM data = THREE.Object3D & VRM-extension
  *  - Converter = Converts "VRM data" into ViewModel quickly, realtime.
  *  - Vue data = ViewModel. Write-operation directly goes to VRM data (and notifies converter).
+ * 
+ * Weight: 0~1.0(vue.js/three.js) 0~100(UI/Unity/VRM). These are typical values, they can be negative or 100+.
  */
 // TODO: For some reason, computed methods are called every frame. Maybe some internal property in three.js is changing
 // every frame? this is not good for performance, but is acceptable for now...
@@ -64,13 +94,19 @@ class MevApplication {
         this.camera.position.set(0, 1, -3);
         this.camera.lookAt(0, 0.9, 0);
 
-        this.renderer = new THREE.WebGLRenderer();
+        this.renderer = new THREE.WebGLRenderer({ antialias: true });
         // Recommended gamma values from https://threejs.org/docs/#examples/loaders/GLTFLoader
         this.renderer.gammaOutput = true;  // If set, then it expects that all textures and colors need to be outputted in premultiplied gamma.
         this.renderer.gammaFactor = 2.2;
         this.renderer.setSize(width, height);
-        this.renderer.antialias = true;
         canvasInsertionParent.appendChild(this.renderer.domElement);
+        window.onresize = _event => {
+            const w = window.innerWidth;
+            const h = window.innerHeight;
+            this.renderer.setSize(w, h);
+            this.camera.aspect = w / h;
+            this.camera.updateProjectionMatrix();
+        };
 
         this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
 
@@ -87,15 +123,6 @@ class MevApplication {
 
         // Overlay UI
         const app = this;
-        const scene = this.scene;
-        Vue.component(
-            "menu-section-emotion", {
-                template: "#menu_section_emotion",
-                props: ["weightConfigs"],
-                methods: {
-                },
-            },
-        );
         this.vm = new Vue({
             el: '#vue_menu',
             data: {
@@ -103,47 +130,50 @@ class MevApplication {
                 startedLoading: false,
                 vrmRoot: null,
                 showEmotionPane: false,
+                isFatalError: false,
 
                 // Main Pane
                 avatarName: "",
                 avatarHeight: "",
-                currentEmotionPresetName: "neutral",
+                currentEmotionId: "neutral",
                 finalVrmSizeApprox: "",
             },
             watch: {
                 vrmRoot: function (newValue, oldValue) {
                     if (oldValue === null) {
-                        this._setEmotion(this.currentEmotionPresetName);
+                        this._setEmotion(this.currentEmotionId);
                         this._computeAvatarHeight();
+                        app._createHeightIndicator(this.avatarHeight);
                     }
                 },
             },
             methods: {
-                clickEmotion: function (emotionPresetName) {
-                    if (this.currentEmotionPresetName === emotionPresetName) {
-                        this.editingEmotionLabel = emotionPresetName;
+                refreshPage: function () {
+                    location.reload();
+                },
+                clickEmotion: function (emotionId) {
+                    if (this.currentEmotionId === emotionId) {
                         this.showEmotionPane = true;
                     } else {
-                        this.currentEmotionPresetName = emotionPresetName;
-                        this._setEmotion(emotionPresetName);
+                        this.currentEmotionId = emotionId;
+                        this._setEmotion(emotionId);
                     }
                 },
-                _setEmotion(presetName) {
-                    const nameToBlendshape = new Map(this.blendshapes.map(bs => [bs.name, bs]));
-                    const blendshape = nameToBlendshape.get(presetName);
-                    console.log("Set emotion", this.vrmRoot, blendshape);
+                _setEmotion(emotionId) {
+                    const nameToBlendshape = new Map(this.blendshapes.map(bs => [bs.id, bs]));
+                    const blendshape = nameToBlendshape.get(emotionId);
 
                     // Reset all morph.
-                    this.vrmRoot.traverse(obj => {
-                        if (obj.type === 'SkinnedMesh' && obj.morphTargetInfluences) {
-                            obj.morphTargetInfluences.fill(0);
-                        }
-                    });
+                    traverseMorphableMesh(this.vrmRoot, mesh => mesh.morphTargetInfluences.fill(0));
+
+                    if (!blendshape) {
+                        return;
+                    }
 
                     // Set new morph set.
                     blendshape.weightConfigs.forEach(weightConfig => {
-                        weightConfig.meshRef.children.forEach(skinnedMesh => {
-                            skinnedMesh.morphTargetInfluences[weightConfig.morphIndex] = 1.0;
+                        traverseMorphableMesh(weightConfig.meshRef, mesh => {
+                            mesh.morphTargetInfluences[weightConfig.morphIndex] = weightConfig.weight * 0.01;  // % -> actual number
                         });
                     });
                 },
@@ -178,16 +208,18 @@ class MevApplication {
                     // this method is computed every frame unlike others (e.g. finalVrmTris, blendshapes, parts).
                     // Maybe because this is using this.vrmRoot directly, and some filed in vrmRoot is changing every frame?
                     if (this.vrmRoot === null) {
-                        return "";
+                        return 0;
                     }
-                    this.avatarHeight = (new THREE.Box3().setFromObject(this.vrmRoot)).getSize(new THREE.Vector3()).y.toFixed(2) + "m";
+                    this.avatarHeight = (new THREE.Box3().setFromObject(this.vrmRoot)).getSize(new THREE.Vector3()).y;
                 }
             },
             computed: {
                 // Toolbar & global pane state.
                 toolbarTitle: function () {
                     if (this.showEmotionPane) {
-                        return "表情:" + EMOTION_PRESET_NAME_TO_LABEL[this.currentEmotionPresetName];
+                        const nameToBlendshape = new Map(this.blendshapes.map(bs => [bs.id, bs]));
+                        const blendshape = nameToBlendshape.get(this.currentEmotionId);
+                        return "表情:" + blendshape.label;
                     } else {
                         return this.avatarName;
                     }
@@ -199,7 +231,7 @@ class MevApplication {
                     return !this.showEmotionPane && this.vrmRoot !== null;
                 },
                 isLoading: function () {
-                    return this.vrmRoot === null && this.startedLoading;
+                    return this.startedLoading && (this.vrmRoot === null && !this.isFatalError);
                 },
 
                 // Main page state "converter".
@@ -218,6 +250,22 @@ class MevApplication {
                         }
                     });
                     return "△" + stats.numTris;
+                },
+                allWeightCandidates: function () {
+                    const candidates = [];
+                    traverseMorphableMesh(this.vrmRoot, mesh => {
+                        Object.keys(mesh.morphTargetDictionary).forEach(morphName => {
+                            candidates.push({
+                                mesh: mesh,
+                                morphIndex: mesh.morphTargetDictionary[morphName],
+                                morphName: morphName,
+                            });
+                        });
+                    });
+                    return candidates;
+                },
+                blendshapeMaster: function () {
+                    return this.vrmRoot.vrmExt.blendShapeMaster;
                 },
                 // Deprecated: Use emotionGroups
                 blendshapes: function () {
@@ -240,7 +288,9 @@ class MevApplication {
                             };
                         });
                         return {
-                            name: bs.presetName,
+                            id: blendshapeToEmotionId(bs),
+                            label: bs.presetName !== "unknown" ? EMOTION_PRESET_NAME_TO_LABEL[bs.presetName] : bs.name,
+                            presetName: bs.presetName,  // "unknown" can appear more than once
                             weightConfigs: binds,
                         };
                     });
@@ -249,30 +299,23 @@ class MevApplication {
                     if (this.vrmRoot == null) {
                         return [];
                     }
-                    const EMOTION_PRESET_GROUPING = [
-                        ["neutral"],
-                        ["a", "i", "u", "e", "o"],
-                        ["joy", "angry", "sorrow", "fun"],
-                        ["blink", "blink_l", "blink_r"],
-                        ["lookleft", "lookright", "lookup", "lookdown"],
-                        // All unknown will go into the last group.
-                    ];
 
                     const knownNames = new Set(flatten(EMOTION_PRESET_GROUPING));
 
-                    const nameToBlendshape = new Map(this.blendshapes.map(bs => [bs.name, bs]));
+                    const nameToBlendshape = new Map(this.blendshapes.map(bs => [bs.presetName, bs]));
                     const groups = EMOTION_PRESET_GROUPING.map(defaultGroupDef => {
                         return defaultGroupDef.map(name => {
                             if (nameToBlendshape.has(name)) {
+                                const bs = nameToBlendshape.get(name);
                                 return {
-                                    presetName: name,
-                                    label: EMOTION_PRESET_NAME_TO_LABEL[name],
-                                    weightConfigs: nameToBlendshape.get(name).weightConfigs,
+                                    id: bs.id,
+                                    label: bs.label,
+                                    weightConfigs: bs.weightConfigs,
                                 };
                             } else {
                                 console.warn("The VRM is missing standard blendshape preset: " + name + ". Creating new one.");
                                 return {
-                                    presetName: name,
+                                    id: name,
                                     label: EMOTION_PRESET_NAME_TO_LABEL[name],
                                     weightConfigs: [],
                                 };
@@ -282,23 +325,29 @@ class MevApplication {
                     );
                     const unknownGroup = [];
                     this.blendshapes.forEach(bs => {
-                        if (!knownNames.has(bs.name)) {
-                            unknownGroup.push({
-                                presetName: bs.name,
-                                label: bs.name,
-                                weightConfigs: bs.weightConfigs,
-                            });
+                        if (knownNames.has(bs.presetName)) {
+                            return;
                         }
+                        // All unknown blendshape presetName must be unknown.
+                        if (bs.presetName !== "unknown") {
+                            console.warn("Non-comformant emotion preset name found, treating as 'unknown'", bs.presetName)
+                        }
+
+                        unknownGroup.push({
+                            id: bs.id,
+                            label: bs.label,
+                            weightConfigs: bs.weightConfigs,
+                        });
                     });
                     if (unknownGroup.length > 0) {
                         groups.push(unknownGroup);
                     }
-
                     return groups;
                 },
                 currentWeightConfigs: function () {
-                    const nameToBlendshape = new Map(this.blendshapes.map(bs => [bs.name, bs]));
-                    return nameToBlendshape.get(this.currentEmotionPresetName).weightConfigs;
+                    const nameToBlendshape = new Map(this.blendshapes.map(bs => [bs.id, bs]));
+                    const blendshape = nameToBlendshape.get(this.currentEmotionId);
+                    return blendshape ? blendshape.weightConfigs : [];
                 },
                 parts: function () {
                     if (this.vrmRoot === null) {
@@ -323,7 +372,7 @@ class MevApplication {
                                 //+ (blendShapeMeshes.has(mesh) ? "BS" : ""),
                                 name: mesh.name,
                                 shaderName: mesh.material.shaderName,
-                                textureUrl: (!mesh.material.map || !mesh.material.map.image) ? null : MevApplication._convertImageToDataUrlWithHeight(mesh.material.map.image, 48),
+                                textureUrl: (!mesh.material.map || !mesh.material.map.image) ? null : MevApplication._convertImageToDataUrlWithHeight(mesh.material.map.image, Math.min(48, mesh.material.map.image.height)),
                                 numTris: "△" + numTris,
                             };
                         });
@@ -357,54 +406,25 @@ class MevApplication {
         const scene = this.scene;
         reader.addEventListener('load', () => {
             if (isFbx) {
-                const fbxLoader = new THREE.FBXLoader();
-                fbxLoader.load(
-                    reader.result,
-                    fbx => {
-                        console.log("FBX loaded", fbx);
-                        const bb_size = new THREE.Box3().setFromObject(fbx).getSize();
-                        const max_len = Math.max(bb_size.x, bb_size.y, bb_size.z);
-                        // heuristics: Try to fit in 0.1m~9.9m. (=log10(max_len * K) should be 0.XXX)
-                        // const scale_factor = Math.pow(10, -Math.floor(Math.log10(max_len)));
-                        //console.log("FBX:size_estimator: max_len=", max_len, "scale_factor=", scale_factor);
-                        const scale_factor = 0.01;
-                        fbx.scale.set(scale_factor, scale_factor, scale_factor);
-                        fbx.rotateOnWorldAxis(new THREE.Vector3(0, 1, 0), Math.PI);
-
-                        // Fix-up materials
-                        fbx.traverse(obj => {
-                            if (obj.type === 'SkinnedMesh' || obj.type === 'Mesh') {
-                                console.log("FBX-Fix-Material", obj.material);
-                                if (obj.material instanceof Array) {
-                                    obj.material = obj.material.map(m => new THREE.MeshLambertMaterial());
-                                } else {
-                                    obj.material = new THREE.MeshLambertMaterial();
-                                }
-                            }
-                        });
-                        console.log("FBX-tree", objectToTreeDebug(fbx));
-                        scene.add(fbx);
-                        app.vrmRoot = fbx;
-                        app.vm.vrmRoot = fbx;
-                        setTimeout(() => {
-                            scene.add(app.createTreeVisualizer(fbx));
-                            app.recalculateFinalSize();
-                        }, 100);
-                    }
-                );
+                importFbxAsVrm(reader.result).then(fbx => {
+                    scene.add(fbx);
+                    app.vrmRoot = fbx;
+                    app.vm.vrmRoot = fbx;
+                    setTimeout(() => {
+                        scene.add(app.createTreeVisualizer(fbx));
+                        app.recalculateFinalSize();
+                    }, 100);
+                });
                 return;
             }
 
             const gltfLoader = new THREE.GLTFLoader();
-
             gltfLoader.load(
                 reader.result,
                 gltfJson => {
-                    console.log("gltf loaded", gltfJson);
                     parseVrm(gltfJson).then(vrmObj => {
-                        //console.log("VRM-tree", objectToTreeDebug(vrmObj));
                         scene.add(vrmObj);
-                        scene.add(app.createTreeVisualizer(vrmObj));
+                        //scene.add(app.createTreeVisualizer(vrmObj));
                         app.vrmRoot = vrmObj;
                         app.vm.vrmRoot = vrmObj;
                         app.recalculateFinalSize();
@@ -412,7 +432,8 @@ class MevApplication {
                 },
                 () => { },
                 error => {
-                    console.log("gltf load failed", error);
+                    console.error("glTF load failed", error);
+                    app.vm.isFatalError = true;
                 });
         });
         reader.readAsDataURL(vrmFile);
@@ -476,44 +497,41 @@ class MevApplication {
         stageObj.add(notchObj);
         return stageObj;
     }
-}
 
-function setupStartDialog(onFileSelected) {
-    const start_dialog = new Vue({
-        el: "#vue_start_dialog",
-        data: {
-            bgColor: "transparent",
-        },
-        methods: {
-            fileDragover: function (event) {
-                event.preventDefault();
-                event.dataTransfer.dropEffect = 'copy';
-                this.bgColor = "#f5f5f5"; // TODO: Move to HTML or CSS
-            },
-            fileDragleave: function (event) {
-                event.preventDefault();
-                this.bgColor = "transparent";
-            },
-            fileDrop: function (event) {
-                event.preventDefault();
-                this.bgColor = "transparent";
-                this._setFileAndExit(event.dataTransfer.files[0]);
-            },
-            fileSelect: function (event) {
-                this._setFileAndExit(event.srcElement.files[0]);
-            },
-            _setFileAndExit: function (file) {
-                this.$destroy();
-                document.getElementById("vue_start_dialog").remove();
-                onFileSelected(file);
-            },
+    _createHeightIndicator(height) {
+        // Arrow
+        {
+            const geom = new THREE.Geometry();
+            geom.vertices.push(new THREE.Vector3(0, height, 0));
+            geom.vertices.push(new THREE.Vector3(-0.5, height, 0));
+            const mat = new THREE.LineBasicMaterial({ color: "black" });
+            this.scene.add(new THREE.LineSegments(geom, mat));
         }
-    });
+
+        // Text
+        const canvas = document.createElement("canvas");
+        canvas.width = 128;
+        canvas.height = 128;
+        const ctx = canvas.getContext("2d");
+        ctx.fillColor = "black";
+        ctx.font = "32px Roboto";
+        ctx.fillText(height.toFixed(2) + "m", 0, 32);
+
+        const tex = new THREE.CanvasTexture(canvas);
+        const mat = new THREE.SpriteMaterial({ map: tex });
+        const sprite = new THREE.Sprite(mat);
+        sprite.scale.set(0.25, 0.25, 0.25);
+        sprite.position.set(-0.5, height - 0.05, 0);
+        this.scene.add(sprite);
+    }
 }
 
 function main() {
     const app = new MevApplication(window.innerWidth, window.innerHeight, document.body);
-    setupStartDialog(file => app.loadFbxOrVrm(file));
+    setupStartDialog(file => {
+        document.getElementById("vue_menu").style.display = "";
+        app.loadFbxOrVrm(file);
+    });
     app.animate();
 }
 
