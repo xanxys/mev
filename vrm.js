@@ -206,31 +206,32 @@ export function parseVrm(gltf) {
 
             // Check if this material is being applied to morphable mesh or not.
             const stats = {
-                numMesh: 0,
                 numMorphable: 0,
+                numNonMorphable: 0,
             };
             traverseMesh(gltf.scene, mesh => {
                 if (mesh.material.name !== matProp.name) {
                     return;
                 }
-                stats.numMesh++;
                 if (mesh.morphTargetInfluences) {
                     stats.numMorphable++;
+                } else {
+                    stats.numNonMorphable++;
                 }
             });
-            if (stats.numMorphable > 0 && stats.numMorphable != stats.numMesh) {
-                console.warn("[me/v not implemented] Partially morphable mesh found. Treating as non-morphable", stats);
-                // TODO: Should split material in this case.
-            }
-            const morphable = stats.numMorphable > 0;
 
             // Fix materials.
-            const mat = new vrm_mat.VRMShaderMaterial({ morphTargets: morphable, skinning: true }, matProp, textures);
+            const matMorphable = stats.numMorphable > 0 ? new vrm_mat.VRMShaderMaterial({ morphTargets: true, skinning: true }, matProp, textures) : null;
+            const matNonMorphable = stats.numNonMorphable > 0 ? new vrm_mat.VRMShaderMaterial({ morphTargets: false, skinning: true }, matProp, textures) : null;
             traverseMesh(gltf.scene, mesh => {
                 if (mesh.material.name !== matProp.name) {
                     return;
                 }
-                mesh.material = mat;
+                if (mesh.morphTargetInfluences) {
+                    mesh.material = matMorphable;
+                } else {
+                    mesh.material = matNonMorphable;
+                }
             });
         });
 
