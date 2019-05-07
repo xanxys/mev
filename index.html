@@ -113,8 +113,8 @@
           <input type="text" v-model="searchQuery" ref="searchbox">
         </div>
         <section v-if="searching" style="max-height:300px; overflow-y:auto">
-          <div v-for="weightCandidate in weightCandidates" @click="addWeight(weightCandidate)">
-            {{weightCandidate.morphName}}
+          <div v-for="weightSearchResult in weightSearchResults" @click="addWeight(weightSearchResult.weightCandidate)">
+            <span style="color: #424242">{{weightSearchResult.namePreHighlight}}</span><span style="font-weight: bold">{{weightSearchResult.nameHighlight}}</span><span style="color: #424242">{{weightSearchResult.namePostHighlight}}</span>
           </div>
         </section>
       </section>

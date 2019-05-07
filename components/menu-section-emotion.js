@@ -36,12 +36,16 @@ Vue.component(
                 });
             },
             addWeight: function (weightCandidate) {
+                const newWeight = 1.0;
+                traverseMorphableMesh(weightCandidate.mesh, mesh => {
+                    mesh.morphTargetInfluences[weightCandidate.morphIndex] = newWeight;
+                });
                 this.blendshapeMaster.blendShapeGroups.forEach(bs => {
-                    if (bs.id !== this.emotionId) {
+                    if (blendshapeToEmotionId(bs) !== this.emotionId) {
                         return;
                     }
                     bs.binds.push({
-                        weight: 100.0,
+                        weight: newWeight * 100,
                         index: weightCandidate.morphIndex,
                         mesh: weightCandidate.mesh,
                     });
@@ -49,11 +53,27 @@ Vue.component(
             },
         },
         computed: {
-            weightCandidates: function () {
+            weightSearchResults: function () {
                 const morphNamesInUse = new Set(this.weightConfigs.map(config => config.morphName));
                 return this.allWeightCandidates
-                    .filter(candidate => !morphNamesInUse.has(candidate.morphName) &&
-                        candidate.morphName.toLowerCase().indexOf(this.searchQuery.toLowerCase()) >= 0);
+                    .map(candidate => {
+                        if (morphNamesInUse.has(candidate.morphName)) {
+                            return null;
+                        }
+                        const hitIndex = candidate.morphName.toLowerCase().indexOf(this.searchQuery.toLowerCase());
+                        if (hitIndex < 0) {
+                            return null;
+                        }
+
+                        const hitEndIndex = hitIndex + this.searchQuery.length;
+                        return {
+                            weightCandidate: candidate,
+                            namePreHighlight: candidate.morphName.substr(0, hitIndex),
+                            nameHighlight: candidate.morphName.substr(hitIndex, this.searchQuery.length),
+                            namePostHighlight: candidate.morphName.substr(hitEndIndex, candidate.morphName.length - hitEndIndex),
+                        };
+                    })
+                    .filter(result => result !== null);
             },
         }
     },

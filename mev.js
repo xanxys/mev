@@ -371,7 +371,7 @@ class MevApplication {
                                 visibility: mesh.visible,
                                 //+ (blendShapeMeshes.has(mesh) ? "BS" : ""),
                                 name: mesh.name,
-                                shaderName: mesh.material.shaderName,
+                                shaderName: mesh.material.shaderName ? mesh.material.shaderName : "Unlit",
                                 textureUrl: (!mesh.material.map || !mesh.material.map.image) ? null : MevApplication._convertImageToDataUrlWithHeight(mesh.material.map.image, Math.min(48, mesh.material.map.image.height)),
                                 numTris: "△" + numTris,
                             };
