@@ -12,6 +12,14 @@
 
 3. FBX importing
 
+## Using as VRM loader library (not officially supported yet)
+
+You will need:
+
+* vrm.js
+* vrm-materials.js
+* third_party/three_gltf_loader.js
+* (external resource) hree.js (R103)
 
 ## Development
 
@@ -19,6 +27,9 @@ Useful VS.code extensions
 
 
 - `Live Server` (launches local HTTP file server, necessary for loading ES6 type="module" scripts)
+
+Open `test.html` to check unit test result.
+(you need to launch a HTTP server to server test data (not included in this repo for copyright reason))
 
 ## License
 
