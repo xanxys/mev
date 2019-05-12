@@ -1,5 +1,5 @@
 // ES6
-import { parseVrm, serializeVrm } from './vrm.js';
+import { deserializeVrm, serializeVrm } from './vrm.js';
 import { setupStartDialog } from './components/start-dialog.js';
 import { } from './components/menu-section-emotion.js';
 import { traverseMorphableMesh, flatten, objectToTreeDebug, blendshapeToEmotionId } from './mev-util.js';
@@ -404,8 +404,8 @@ class MevApplication {
         const reader = new FileReader();
         const app = this;
         const scene = this.scene;
-        reader.addEventListener('load', () => {
-            if (isFbx) {
+        if (isFbx) {
+            reader.addEventListener('load', () => {
                 importFbxAsVrm(reader.result).then(fbx => {
                     scene.add(fbx);
                     app.vrmRoot = fbx;
@@ -416,27 +416,21 @@ class MevApplication {
                     }, 100);
                 });
                 return;
-            }
-
-            const gltfLoader = new THREE.GLTFLoader();
-            gltfLoader.load(
-                reader.result,
-                gltfJson => {
-                    parseVrm(gltfJson).then(vrmObj => {
-                        scene.add(vrmObj);
-                        //scene.add(app.createTreeVisualizer(vrmObj));
-                        app.vrmRoot = vrmObj;
-                        app.vm.vrmRoot = vrmObj;
-                        app.recalculateFinalSize();
-                    });
-                },
-                () => { },
-                error => {
-                    console.error("glTF load failed", error);
-                    app.vm.isFatalError = true;
+            });
+            reader.readAsDataURL(vrmFile);
+        } else {
+            // VRM
+            reader.addEventListener("load", () => {
+                deserializeVrm(reader.result).then(vrmObj => {
+                    scene.add(vrmObj);
+                    //scene.add(app.createTreeVisualizer(vrmObj));
+                    app.vrmRoot = vrmObj;
+                    app.vm.vrmRoot = vrmObj;
+                    app.recalculateFinalSize();
                 });
-        });
-        reader.readAsDataURL(vrmFile);
+            });
+            reader.readAsArrayBuffer(vrmFile);
+        }
     }
 
     /**

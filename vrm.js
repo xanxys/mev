@@ -175,11 +175,29 @@ export function serializeVrm(vrmRoot) {
 }
 
 /**
+ * Deserialize VRM blob and return root of three.js object with .vrmExt field.
+ * @param {ArrayBuffer} data 
+ * @return {Promise<THREE.Object3D>} VRM root
+ */
+export function deserializeVrm(data) {
+    return new Promise((resolve, reject) => {
+        const gltfLoader = new THREE.GLTFLoader();
+        gltfLoader.parse(
+            data,
+            "", // path
+            gltfJson => {
+                parseVrm(gltfJson).then(resolve);
+            },
+            reject);
+    });
+}
+
+/**
  * 
  * @param {Object} gltf object returned by THREE.GLTFLoader
- * @return {Promise<THREE.Object3D>} will have .vrm_ext field.
+ * @return {Promise<THREE.Object3D>} will have .vrmExt field.
  */
-export function parseVrm(gltf) {
+function parseVrm(gltf) {
     console.log("Parsing glTF as VRM", gltf);
 
     const dataPromise = Promise.all([
