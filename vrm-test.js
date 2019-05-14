@@ -17,49 +17,44 @@ function summarizeObject(obj) {
     return stats;
 }
 
-// TODO: Consider using https://qunitjs.com/
 class VrmIdentityTester {
     constructor() {
         this.testDataRepository = "http://localhost:8080";
     }
 
     run() {
-        window.fetch(this.testDataRepository + "/index.json", { mode: "cors" }).then(response => response.json())
+        window.fetch(this.testDataRepository + "/index.json", { mode: "cors" })
+            .then(response => response.json())
             .then(testDataIndex => {
                 console.log("Downloaded:", testDataIndex);
+
                 testDataIndex.vrm.forEach(file => {
-                    const vrmUrl = this.testDataRepository + "/" + file;
+                    QUnit.test("sd-identity: " + file, assert => {
+                        const done = assert.async();
 
-                    window.fetch(vrmUrl, { mode: "cors" }).then(response => response.arrayBuffer())
-                        .then(deserializeVrm)
-                        .then(origVrm => {
-                            serializeVrm(origVrm)
-                                .then(deserializeVrm)
-                                .then(sdVrm => {
-                                    // TODO: compare
-                                    const origSummary = summarizeObject(origVrm);
-                                    const sdSummary = summarizeObject(sdVrm);
+                        const vrmUrl = this.testDataRepository + "/" + file;
+                        window.fetch(vrmUrl, { mode: "cors" })
+                            .then(response => response.arrayBuffer())
+                            .then(deserializeVrm)
+                            .then(origVrm => {
+                                return serializeVrm(origVrm)
+                                    .then(deserializeVrm)
+                                    .then(sdVrm => {
+                                        // TODO: compare
+                                        const origSummary = summarizeObject(origVrm);
+                                        const sdSummary = summarizeObject(sdVrm);
 
-                                    if (JSON.stringify(origSummary) !== JSON.stringify(sdSummary)) {
-                                        this.report(file + " " + "NG" + JSON.stringify(origSummary) + "  " + JSON.stringify(sdSummary));
-                                    } else {
-                                        this.report(file + " " + "OK");
-                                    }
-                                })
-                                .catch(err => {
-                                    this.report(file + " " + "NG" + err);
-                                });
-
-                        });
+                                        assert.deepEqual(sdSummary, origSummary);
+                                        done();
+                                    })
+                                    .catch(err => {
+                                        assert.ok(false, err);
+                                        done();
+                                    });
+                            });
+                    });
                 });
             });
-    }
-
-    report(message) {
-        const res = document.createElement("div");
-        const resMessage = document.createTextNode(message);
-        res.appendChild(resMessage);
-        document.body.appendChild(res);
     }
 }
 
