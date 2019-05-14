@@ -6,6 +6,8 @@
 
 ## Roadmap
 
+0. VRM import / export works without breaking any data
+
 1. VRM component (bone) editing
 
 2. VRM material editing (simple things: hue shift / resize / download / upload)
