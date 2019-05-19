@@ -2,6 +2,78 @@
 import * as vrm_mat from './vrm-materials.js';
 
 /**
+ * Immutable representation of a single, whole .vrm data.
+ * Guranteed to be (de-)serializable from/to a blob.
+ */
+export class VrmModel {
+    // Private
+    constructor(vrmBlob) {
+        this.vrmBlob = vrmBlob;
+    }
+
+    /**
+     * 
+     * @param {ArrayBuffer} blob
+     * @returns {Promise<VrmModel>}
+     */
+    static deserialize(blob) {
+        return new Promise((resolve, _reject) => {
+            resolve(new VrmModel(blob));
+        });
+    }
+
+    /** 
+     * Asynchronously serializes model to a VRM data.
+     * Repeated calls are guranteed to return exactly same data.
+     * @returns {Promise<ArrayBuffer>}
+     */
+    serialize() {
+        return new Promise((resolve, _reject) => {
+            resolve(this.vrmBlob);
+        });
+    }
+
+
+    // HACK: Define proper way to specify a node.
+    // "mutation" methods. These methods will return new instance of VrmModel with requested updates.
+
+
+
+}
+
+/**
+ * Single instantiated view of a VrmModel as a positionable THREE.Object3D.
+ * Possibly caches THREE.Object3D / Texture etc for quick invalidate.
+ */
+export class VrmRenderer {
+    constructor(model) {
+        this.model = model;
+        this.instance = null;
+    }
+
+    /** Returns a singleton correponding to the model. No need to re-fetch after invalidate(). */
+    getThreeInstance() {
+        return this.instance;
+    }
+
+    getThreeInstanceAsync() {
+        if (this.instance !== null) {
+            return new Promise((resolve, _reject) => {
+                resolve(this.instance);
+            });
+        }
+        return vrmBlobToThree(this.model.vrmBlob).then(instance => {
+            this.instance = instance;
+            return instance;
+        })
+    }
+
+    /** Notifies that underlying model was updated, and instance needs to change. */
+    invalidate(newModel) {
+    }
+}
+
+/**
  * Similar to root.traverse(fn), but only executes fn when object is a mesh.
  * @param {THREE.Object3D} root 
  * @param {Function<THREE.Object3D>} fn 
@@ -189,7 +261,7 @@ export function serializeVrm(vrmRoot) {
  * @param {ArrayBuffer} data 
  * @return {Promise<THREE.Object3D>} VRM root
  */
-export function deserializeVrm(data) {
+function vrmBlobToThree(data) {
     return new Promise((resolve, reject) => {
         const gltfLoader = new THREE.GLTFLoader();
         gltfLoader.parse(
