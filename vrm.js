@@ -143,13 +143,23 @@ export function serializeVrm(vrmRoot) {
                 }
             },
             mapMesh: meshRef => {
-                // Looks suspicious. Why skins instead of meshes?
-                const skinId = gltfResult.skins.findIndex(e => e === meshRef[0]);
-                if (skinId < 0) {
-                    console.error("mapNode failed (not found in skins)", meshRef);
-                    return 0;
+                if (meshRef.type === 'Group') {
+                    const nodeId = gltfResult.nodeMap.get(meshRef);
+                    if (nodeId === undefined) {
+                        console.error("mapMesh(Group) failed", meshRef);
+                        return 0;
+                    } else {
+                        return nodeId;
+                    }
                 } else {
-                    return skinId;
+                    // Looks suspicious. Why skins instead of meshes?
+                    const skinId = gltfResult.skins.findIndex(e => e === meshRef);
+                    if (skinId < 0) {
+                        console.error("mapMesh failed (not found in skins)", meshRef);
+                        return 0;
+                    } else {
+                        return skinId;
+                    }
                 }
             },
             mapTexture: texRef => {
@@ -186,10 +196,35 @@ export function deserializeVrm(data) {
             data,
             "", // path
             gltfJson => {
+                console.log("glTF/S=", JSON.stringify(dumpGltfSceneTree(gltfJson.parser.json), null, 2));
                 parseVrm(gltfJson).then(resolve);
             },
             reject);
     });
+}
+
+function dumpGltfSceneTree(gltf) {
+    console.log(gltf);
+    function aux(nodeId) {
+        const node = gltf.nodes[nodeId];
+        const types = [];
+        if (node.skin !== undefined) {
+            types.push("Skin");
+        }
+        if (node.mesh !== undefined) {
+            types.push("Mesh");
+        }
+        if (node.isBone) {
+            types.push("Bone");
+        }
+        return {
+            id: nodeId,
+            name: node.name,
+            types: types,
+            children: (node.children || []).map(aux),
+        };
+    }
+    return gltf.scenes[gltf.scene].nodes.map(aux);
 }
 
 /**
