@@ -1,5 +1,6 @@
 // ES6
 import * as vrm_mat from './vrm-materials.js';
+import { serializeGlb } from './gltf.js';
 
 /**
  * Immutable representation of a single, whole .vrm data.
@@ -37,8 +38,9 @@ export class VrmModel {
     // HACK: Define proper way to specify a node.
     // "mutation" methods. These methods will return new instance of VrmModel with requested updates.
 
-
-
+    countTris() {
+        return 0;
+    }
 }
 
 /**
@@ -88,97 +90,10 @@ function traverseMesh(root, fn) {
 }
 
 /**
- * Serialize glTF JSON & binary buffers into a single binary (GLB format).
- * Spec: https://github.com/KhronosGroup/glTF/blob/master/specification/2.0/README.md#glb-file-format-specification
- * @return {Promise<ArrayBuffer>}
- */
-function serializeGlb(obj) {
-    const outputJSON = obj.json;
-    const buffers = obj.buffers;
-
-    function getPaddedBufferSize(bufferSize) {
-        return Math.ceil(bufferSize / 4) * 4;
-    }
-
-    function getPaddedArrayBuffer(arrayBuffer, paddingByte) {
-        paddingByte = paddingByte || 0;
-        var paddedLength = getPaddedBufferSize(arrayBuffer.byteLength);
-        if (paddedLength === arrayBuffer.byteLength) {
-            return arrayBuffer;
-        }
-
-        const array = new Uint8Array(paddedLength);
-        array.set(new Uint8Array(arrayBuffer));
-        if (paddingByte !== 0) {
-            for (var i = arrayBuffer.byteLength; i < paddedLength; i++) {
-                array[i] = paddingByte;
-            }
-        }
-        return array.buffer;
-    }
-
-    // Merge buffers.
-    const blob = new Blob(buffers, { type: 'application/octet-stream' });
-
-    // Update bytelength of the single buffer.
-    outputJSON.buffers[0].byteLength = blob.size;
-
-    const GLB_HEADER_BYTES = 12;
-    const GLB_HEADER_MAGIC = 0x46546C67;
-    const GLB_VERSION = 2;
-
-    const GLB_CHUNK_PREFIX_BYTES = 8;
-    const GLB_CHUNK_TYPE_JSON = 0x4E4F534A;
-    const GLB_CHUNK_TYPE_BIN = 0x004E4942;
-
-    return new Promise((resolve, reject) => {
-        const reader = new window.FileReader();
-        reader.onloadend = function () {
-            // Binary chunk.
-            var binaryChunk = getPaddedArrayBuffer(reader.result);
-            var binaryChunkPrefix = new DataView(new ArrayBuffer(GLB_CHUNK_PREFIX_BYTES));
-            binaryChunkPrefix.setUint32(0, binaryChunk.byteLength, true);
-            binaryChunkPrefix.setUint32(4, GLB_CHUNK_TYPE_BIN, true);
-
-            // JSON chunk.
-            var jsonChunk = getPaddedArrayBuffer(new TextEncoder().encode(JSON.stringify(outputJSON)).buffer, 0x20);
-            var jsonChunkPrefix = new DataView(new ArrayBuffer(GLB_CHUNK_PREFIX_BYTES));
-            jsonChunkPrefix.setUint32(0, jsonChunk.byteLength, true);
-            jsonChunkPrefix.setUint32(4, GLB_CHUNK_TYPE_JSON, true);
-
-            // GLB header.
-            var header = new ArrayBuffer(GLB_HEADER_BYTES);
-            var headerView = new DataView(header);
-            headerView.setUint32(0, GLB_HEADER_MAGIC, true);
-            headerView.setUint32(4, GLB_VERSION, true);
-            var totalByteLength = GLB_HEADER_BYTES
-                + jsonChunkPrefix.byteLength + jsonChunk.byteLength
-                + binaryChunkPrefix.byteLength + binaryChunk.byteLength;
-            headerView.setUint32(8, totalByteLength, true);
-
-            var glbBlob = new Blob([
-                header,
-                jsonChunkPrefix,
-                jsonChunk,
-                binaryChunkPrefix,
-                binaryChunk
-            ], { type: 'application/octet-stream' });
-
-            var glbReader = new window.FileReader();
-            glbReader.readAsArrayBuffer(glbBlob);
-            glbReader.onloadend = function () {
-                resolve(glbReader.result);
-            };
-        };
-        reader.readAsArrayBuffer(blob);
-    });
-}
-
-/**
  * @param {THREE.Object3D} vrmRoot, must have .vrm_ext field
  * @return {Promise<ArrayBuffer>} vrm (.glb format) blob
  */
-export function serializeVrm(vrmRoot) {
+export function legacySerializeVrm(vrmRoot) {
     const exporter = new THREE.GLTFExporter();
     const options = {
         includeCustomExtensions: true,

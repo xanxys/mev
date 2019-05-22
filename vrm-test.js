@@ -1,5 +1,5 @@
 // ES6
-import { deserializeVrm, serializeVrm } from './vrm.js';
+import { deserializeGlb, serializeGlb } from './gltf.js';
 
 /**
  * 
@@ -29,28 +29,19 @@ class VrmIdentityTester {
                 console.log("Downloaded:", testDataIndex);
 
                 testDataIndex.vrm.forEach(file => {
-                    QUnit.test("sd-identity: " + file, assert => {
+                    QUnit.test("GLB-s/d/s/d-identity: " + file, assert => {
                         const done = assert.async();
 
                         const vrmUrl = this.testDataRepository + "/" + file;
                         window.fetch(vrmUrl, { mode: "cors" })
                             .then(response => response.arrayBuffer())
-                            .then(deserializeVrm)
-                            .then(origVrm => {
-                                return serializeVrm(origVrm)
-                                    .then(deserializeVrm)
-                                    .then(sdVrm => {
-                                        // TODO: compare
-                                        const origSummary = summarizeObject(origVrm);
-                                        const sdSummary = summarizeObject(sdVrm);
-
-                                        assert.deepEqual(sdSummary, origSummary);
-                                        done();
-                                    })
-                                    .catch(err => {
-                                        assert.ok(false, err);
-                                        done();
-                                    });
+                            .then(origGlb => {
+                                const baseGlb = serializeGlb(deserializeGlb(origGlb));
+                                const reserializedGlb = serializeGlb(deserializeGlb(baseGlb));
+                                // origGlb == baseGlb is too strict;
+                                // JSON.encode difference e.g. https://gyazo.com/594c683bcc51ae4b1f466e028f45fb80
+                                assert.equal(reserializedGlb.byteLength, baseGlb.byteLength);
+                                done();
                             });
                     });
                 });
