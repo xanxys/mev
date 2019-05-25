@@ -1,4 +1,11 @@
 /**
+ * Subset of glTF / VRM extension - THREE.js object mapper.
+ * 
+ * Omits some components that aren't useful for VRM.
+ * i.e.:
+ * - remote resource fetch (glTF in VRM always contains all resource in single blob)
+ * - assume glTF V2 (no KHR_BINARY_GLTF)
+ * 
  * @author Rich Tibbett / https://github.com/richtr
  * @author mrdoob / http://mrdoob.com/
  * @author Tony Parisi / http://www.tonyparisi.com/
@@ -8,143 +15,110 @@
  */
 
 export class GLTFLoader {
-	constructor(manager) {
-		this.manager = (manager !== undefined) ? manager : THREE.DefaultLoadingManager;
+	constructor() {
+		this.manager = THREE.DefaultLoadingManager;
 		this.dracoLoader = null;
 		this.crossOrigin = 'anonymous';
 	}
 
-
-	setCrossOrigin(value) {
-
-		this.crossOrigin = value;
-		return this;
-
-	}
-
-	setPath(value) {
-
-		this.path = value;
-		return this;
-
-	}
-
-	setResourcePath(value) {
-
-		this.resourcePath = value;
-		return this;
-
-	}
-
 	setDRACOLoader(dracoLoader) {
-
 		this.dracoLoader = dracoLoader;
 		return this;
-
 	}
 
-	parse(data, path, onLoad, onError) {
+	/**
+	 * 
+	 * @param {ArrayBuffer} data 
+	 * @returns {Promise<Object>}
+	 */
+	parse(data) {
+		return new Promise((onLoad, onError) => {
+			var content;
+			var extensions = {};
 
-		var content;
-		var extensions = {};
+			if (typeof data === 'string') {
 
-		if (typeof data === 'string') {
-
-			content = data;
-
-		} else {
-
-			var magic = THREE.LoaderUtils.decodeText(new Uint8Array(data, 0, 4));
-
-			if (magic === BINARY_EXTENSION_HEADER_MAGIC) {
-
-				try {
-
-					extensions[EXTENSIONS.KHR_BINARY_GLTF] = new GLTFBinaryExtension(data);
-
-				} catch (error) {
-
-					if (onError) onError(error);
-					return;
-
-				}
-
-				content = extensions[EXTENSIONS.KHR_BINARY_GLTF].content;
+				content = data;
 
 			} else {
 
-				content = THREE.LoaderUtils.decodeText(new Uint8Array(data));
+				var magic = THREE.LoaderUtils.decodeText(new Uint8Array(data, 0, 4));
 
-			}
+				if (magic === BINARY_EXTENSION_HEADER_MAGIC) {
 
-		}
+					try {
 
-		var json = JSON.parse(content);
+						extensions[EXTENSIONS.KHR_BINARY_GLTF] = new GLTFBinaryExtension(data);
 
-		if (json.asset === undefined || json.asset.version[0] < 2) {
+					} catch (error) {
 
-			if (onError) onError(new Error('THREE.GLTFLoader: Unsupported asset. glTF versions >=2.0 are supported. Use LegacyGLTFLoader instead.'));
-			return;
+						if (onError) onError(error);
+						return;
 
-		}
+					}
 
-		if (json.extensionsUsed) {
+					content = extensions[EXTENSIONS.KHR_BINARY_GLTF].content;
 
-			for (var i = 0; i < json.extensionsUsed.length; ++i) {
+				} else {
 
-				var extensionName = json.extensionsUsed[i];
-				var extensionsRequired = json.extensionsRequired || [];
-
-				switch (extensionName) {
-
-					case EXTENSIONS.KHR_LIGHTS_PUNCTUAL:
-						extensions[extensionName] = new GLTFLightsExtension(json);
-						break;
-
-					case EXTENSIONS.KHR_MATERIALS_UNLIT:
-						extensions[extensionName] = new GLTFMaterialsUnlitExtension(json);
-						break;
-
-					case EXTENSIONS.KHR_MATERIALS_PBR_SPECULAR_GLOSSINESS:
-						extensions[extensionName] = new GLTFMaterialsPbrSpecularGlossinessExtension(json);
-						break;
-
-					case EXTENSIONS.KHR_DRACO_MESH_COMPRESSION:
-						extensions[extensionName] = new GLTFDracoMeshCompressionExtension(json, this.dracoLoader);
-						break;
-
-					case EXTENSIONS.MSFT_TEXTURE_DDS:
-						extensions[EXTENSIONS.MSFT_TEXTURE_DDS] = new GLTFTextureDDSExtension();
-						break;
-
-					case EXTENSIONS.KHR_TEXTURE_TRANSFORM:
-						extensions[EXTENSIONS.KHR_TEXTURE_TRANSFORM] = new GLTFTextureTransformExtension(json);
-						break;
-
-					default:
-
-						if (extensionsRequired.indexOf(extensionName) >= 0) {
-
-							console.warn('THREE.GLTFLoader: Unknown extension "' + extensionName + '".');
-
-						}
+					content = THREE.LoaderUtils.decodeText(new Uint8Array(data));
 
 				}
 
 			}
 
-		}
+			var json = JSON.parse(content);
 
-		var parser = new GLTFParser(json, extensions, {
+			if (json.asset === undefined || json.asset.version[0] < 2) {
+				if (onError) onError(new Error('THREE.GLTFLoader: Unsupported asset. glTF versions >=2.0 are supported. Use LegacyGLTFLoader instead.'));
+				return;
+			}
 
-			path: path || this.resourcePath || '',
-			crossOrigin: this.crossOrigin,
-			manager: this.manager
+			if (json.extensionsUsed) {
+				for (var i = 0; i < json.extensionsUsed.length; ++i) {
+					var extensionName = json.extensionsUsed[i];
+					var extensionsRequired = json.extensionsRequired || [];
 
-		});
+					switch (extensionName) {
 
-		parser.parse(onLoad, onError);
+						case EXTENSIONS.KHR_LIGHTS_PUNCTUAL:
+							extensions[extensionName] = new GLTFLightsExtension(json);
+							break;
 
+						case EXTENSIONS.KHR_MATERIALS_UNLIT:
+							extensions[extensionName] = new GLTFMaterialsUnlitExtension(json);
+							break;
+
+						case EXTENSIONS.KHR_MATERIALS_PBR_SPECULAR_GLOSSINESS:
+							extensions[extensionName] = new GLTFMaterialsPbrSpecularGlossinessExtension(json);
+							break;
+
+						case EXTENSIONS.KHR_DRACO_MESH_COMPRESSION:
+							extensions[extensionName] = new GLTFDracoMeshCompressionExtension(json, this.dracoLoader);
+							break;
+
+						case EXTENSIONS.MSFT_TEXTURE_DDS:
+							extensions[EXTENSIONS.MSFT_TEXTURE_DDS] = new GLTFTextureDDSExtension();
+							break;
+
+						case EXTENSIONS.KHR_TEXTURE_TRANSFORM:
+							extensions[EXTENSIONS.KHR_TEXTURE_TRANSFORM] = new GLTFTextureTransformExtension(json);
+							break;
+
+						default:
+							if (extensionsRequired.indexOf(extensionName) >= 0) {
+								console.warn('THREE.GLTFLoader: Unknown extension "' + extensionName + '".');
+							}
+					}
+				}
+			}
+
+			onLoad(new GLTFParser(json, extensions, {
+				path: '',
+				crossOrigin: this.crossOrigin,
+				manager: this.manager
+			}));
+		}).then(parser => parser.parse());
 	}
 
 }
@@ -1544,42 +1518,45 @@ class GLTFParser {
 		this.fileLoader.setResponseType('arraybuffer');
 	}
 
-	parse(onLoad, onError) {
+	/**
+	 * @returns {Promise<Object>}
+	 */
+	parse() {
+		return new Promise((onLoad, onError) => {
+			var parser = this;
+			var json = this.json;
+			var extensions = this.extensions;
 
-		var parser = this;
-		var json = this.json;
-		var extensions = this.extensions;
+			// Clear the loader cache
+			this.cache.removeAll();
 
-		// Clear the loader cache
-		this.cache.removeAll();
+			// Mark the special nodes/meshes in json for efficient parse
+			this.markDefs();
 
-		// Mark the special nodes/meshes in json for efficient parse
-		this.markDefs();
+			Promise.all([
 
-		Promise.all([
+				this.getDependencies('scene'),
+				this.getDependencies('animation'),
+				this.getDependencies('camera'),
 
-			this.getDependencies('scene'),
-			this.getDependencies('animation'),
-			this.getDependencies('camera'),
+			]).then(function (dependencies) {
 
-		]).then(function (dependencies) {
+				var result = {
+					scene: dependencies[0][json.scene || 0],
+					scenes: dependencies[0],
+					animations: dependencies[1],
+					cameras: dependencies[2],
+					asset: json.asset,
+					parser: parser,
+					userData: {}
+				};
 
-			var result = {
-				scene: dependencies[0][json.scene || 0],
-				scenes: dependencies[0],
-				animations: dependencies[1],
-				cameras: dependencies[2],
-				asset: json.asset,
-				parser: parser,
-				userData: {}
-			};
+				addUnknownExtensionsToUserData(extensions, result, json);
 
-			addUnknownExtensionsToUserData(extensions, result, json);
+				onLoad(result);
 
-			onLoad(result);
-
-		}).catch(onError);
-
+			}).catch(onError);
+		});
 	}
 
 	/**

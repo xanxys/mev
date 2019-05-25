@@ -187,16 +187,8 @@ export function legacySerializeVrm(vrmRoot) {
  * @return {Promise<THREE.Object3D>} VRM root
  */
 function vrmBlobToThree(data) {
-    return new Promise((resolve, reject) => {
-        const gltfLoader = new GLTFLoader();
-        gltfLoader.parse(
-            data,
-            "", // path
-            gltfJson => {
-                parseVrm(gltfJson).then(resolve);
-            },
-            reject);
-    });
+    const gltfLoader = new GLTFLoader();
+    return gltfLoader.parse(data).then(parseVrm);
 }
 
 function dumpGltfSceneTree(gltf) {
