@@ -1,6 +1,7 @@
 // ES6
 import * as vrm_mat from './vrm-materials.js';
-import { serializeGlb } from './gltf.js';
+import { deserializeGlb, serializeGlb } from './gltf.js';
+import { GLTFLoader } from './gltf-three.js';
 
 /**
  * Immutable representation of a single, whole .vrm data.
@@ -8,8 +9,16 @@ import { serializeGlb } from './gltf.js';
  */
 export class VrmModel {
     // Private
-    constructor(vrmBlob) {
+    /**
+     * 
+     * @param {ArrayBuffer} vrmBlob
+     * @param {Object} gltf: glTF structure
+     * @param {Array<ArrayBuffer>} buffers 
+     */
+    constructor(vrmBlob, gltf, buffers) {
         this.vrmBlob = vrmBlob;
+        this.gltf = gltf;
+        this.buffers = buffers;
     }
 
     /**
@@ -18,8 +27,9 @@ export class VrmModel {
      * @returns {Promise<VrmModel>}
      */
     static deserialize(blob) {
+        const gltf = deserializeGlb(blob);
         return new Promise((resolve, _reject) => {
-            resolve(new VrmModel(blob));
+            resolve(new VrmModel(blob, gltf.json, gltf.buffers));
         });
     }
 
@@ -178,12 +188,11 @@ export function legacySerializeVrm(vrmRoot) {
  */
 function vrmBlobToThree(data) {
     return new Promise((resolve, reject) => {
-        const gltfLoader = new THREE.GLTFLoader();
+        const gltfLoader = new GLTFLoader();
         gltfLoader.parse(
             data,
             "", // path
             gltfJson => {
-                console.log("glTF/S=", JSON.stringify(dumpGltfSceneTree(gltfJson.parser.json), null, 2));
                 parseVrm(gltfJson).then(resolve);
             },
             reject);
