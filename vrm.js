@@ -69,9 +69,7 @@ export class VrmRenderer {
 
     getThreeInstanceAsync() {
         if (this.instance !== null) {
-            return new Promise((resolve, _reject) => {
-                resolve(this.instance);
-            });
+            return Promise.resolve(this.instance);
         }
 
         const gltfLoader = new GLTFLoader();
