@@ -10,13 +10,10 @@ import { GLTFLoader } from './gltf-three.js';
 export class VrmModel {
     // Private
     /**
-     * 
-     * @param {ArrayBuffer} vrmBlob
      * @param {Object} gltf: glTF structure
      * @param {Array<ArrayBuffer>} buffers 
      */
-    constructor(vrmBlob, gltf, buffers) {
-        this.vrmBlob = vrmBlob;
+    constructor(gltf, buffers) {
         this.gltf = gltf;
         this.buffers = buffers;
     }
@@ -29,7 +26,7 @@ export class VrmModel {
     static deserialize(blob) {
         const gltf = deserializeGlb(blob);
         return new Promise((resolve, _reject) => {
-            resolve(new VrmModel(blob, gltf.json, gltf.buffers));
+            resolve(new VrmModel(gltf.json, gltf.buffers));
         });
     }
 
@@ -40,10 +37,12 @@ export class VrmModel {
      */
     serialize() {
         return new Promise((resolve, _reject) => {
-            resolve(this.vrmBlob);
+            resolve(serializeGlb({
+                json: this.gltf,
+                buffers: this.buffers,
+            }));
         });
     }
-
 
     // HACK: Define proper way to specify a node.
     // "mutation" methods. These methods will return new instance of VrmModel with requested updates.
@@ -74,7 +73,9 @@ export class VrmRenderer {
                 resolve(this.instance);
             });
         }
-        return vrmBlobToThree(this.model.vrmBlob).then(instance => {
+
+        const gltfLoader = new GLTFLoader();
+        return gltfLoader.parse(this.model.gltf, this.model.buffers[0]).then(parseVrm).then(instance => {
             this.instance = instance;
             return instance;
         })
@@ -181,15 +182,6 @@ export function legacySerializeVrm(vrmRoot) {
     return gltf_and_buffers.then(attachVrmExtension).then(serializeGlb);
 }
 
-/**
- * Deserialize VRM blob and return root of three.js object with .vrmExt field.
- * @param {ArrayBuffer} data 
- * @return {Promise<THREE.Object3D>} VRM root
- */
-function vrmBlobToThree(data) {
-    const gltfLoader = new GLTFLoader();
-    return gltfLoader.parse(data).then(parseVrm);
-}
 
 function dumpGltfSceneTree(gltf) {
     console.log(gltf);

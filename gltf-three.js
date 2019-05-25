@@ -27,48 +27,15 @@ export class GLTFLoader {
 	}
 
 	/**
-	 * 
-	 * @param {ArrayBuffer} data 
+	 * @param {Object} json: glTF main content
+	 * @param {ArrayBuffer} buffer: glTF bin buffer (first one)
 	 * @returns {Promise<Object>}
 	 */
-	parse(data) {
+	parse(json, buffer) {
 		return new Promise((onLoad, onError) => {
-			var content;
 			var extensions = {};
-
-			if (typeof data === 'string') {
-
-				content = data;
-
-			} else {
-
-				var magic = THREE.LoaderUtils.decodeText(new Uint8Array(data, 0, 4));
-
-				if (magic === BINARY_EXTENSION_HEADER_MAGIC) {
-
-					try {
-
-						extensions[EXTENSIONS.KHR_BINARY_GLTF] = new GLTFBinaryExtension(data);
-
-					} catch (error) {
-
-						if (onError) onError(error);
-						return;
-
-					}
-
-					content = extensions[EXTENSIONS.KHR_BINARY_GLTF].content;
-
-				} else {
-
-					content = THREE.LoaderUtils.decodeText(new Uint8Array(data));
-
-				}
-
-			}
-
-			var json = JSON.parse(content);
-
+			extensions[EXTENSIONS.KHR_BINARY_GLTF] = new GLTFBinaryExtension(buffer);
+			
 			if (json.asset === undefined || json.asset.version[0] < 2) {
 				if (onError) onError(new Error('THREE.GLTFLoader: Unsupported asset. glTF versions >=2.0 are supported. Use LegacyGLTFLoader instead.'));
 				return;
@@ -120,8 +87,14 @@ export class GLTFLoader {
 			}));
 		}).then(parser => parser.parse());
 	}
-
 }
+
+// deprecated
+function GLTFBinaryExtension(buffer) {
+	this.name = EXTENSIONS.KHR_BINARY_GLTF;
+	this.body = buffer;  // single ArrayBuffer (bin chunk data)
+}
+
 
 
 
@@ -310,74 +283,6 @@ GLTFMaterialsUnlitExtension.prototype.extendParams = function (materialParams, m
 	return Promise.all(pending);
 
 };
-
-/* BINARY EXTENSION */
-
-var BINARY_EXTENSION_BUFFER_NAME = 'binary_glTF';
-var BINARY_EXTENSION_HEADER_MAGIC = 'glTF';
-var BINARY_EXTENSION_HEADER_LENGTH = 12;
-var BINARY_EXTENSION_CHUNK_TYPES = { JSON: 0x4E4F534A, BIN: 0x004E4942 };
-
-function GLTFBinaryExtension(data) {
-
-	this.name = EXTENSIONS.KHR_BINARY_GLTF;
-	this.content = null;
-	this.body = null;
-
-	var headerView = new DataView(data, 0, BINARY_EXTENSION_HEADER_LENGTH);
-
-	this.header = {
-		magic: THREE.LoaderUtils.decodeText(new Uint8Array(data.slice(0, 4))),
-		version: headerView.getUint32(4, true),
-		length: headerView.getUint32(8, true)
-	};
-
-	if (this.header.magic !== BINARY_EXTENSION_HEADER_MAGIC) {
-
-		throw new Error('THREE.GLTFLoader: Unsupported glTF-Binary header.');
-
-	} else if (this.header.version < 2.0) {
-
-		throw new Error('THREE.GLTFLoader: Legacy binary file detected. Use LegacyGLTFLoader instead.');
-
-	}
-
-	var chunkView = new DataView(data, BINARY_EXTENSION_HEADER_LENGTH);
-	var chunkIndex = 0;
-
-	while (chunkIndex < chunkView.byteLength) {
-
-		var chunkLength = chunkView.getUint32(chunkIndex, true);
-		chunkIndex += 4;
-
-		var chunkType = chunkView.getUint32(chunkIndex, true);
-		chunkIndex += 4;
-
-		if (chunkType === BINARY_EXTENSION_CHUNK_TYPES.JSON) {
-
-			var contentArray = new Uint8Array(data, BINARY_EXTENSION_HEADER_LENGTH + chunkIndex, chunkLength);
-			this.content = THREE.LoaderUtils.decodeText(contentArray);
-
-		} else if (chunkType === BINARY_EXTENSION_CHUNK_TYPES.BIN) {
-
-			var byteOffset = BINARY_EXTENSION_HEADER_LENGTH + chunkIndex;
-			this.body = data.slice(byteOffset, byteOffset + chunkLength);
-
-		}
-
-		// Clients must ignore chunks with unknown types.
-
-		chunkIndex += chunkLength;
-
-	}
-
-	if (this.content === null) {
-
-		throw new Error('THREE.GLTFLoader: JSON content not found.');
-
-	}
-
-}
 
 /**
  * DRACO Mesh Compression Extension
