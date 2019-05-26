@@ -1,5 +1,5 @@
 // ES6
-import { parseVrm, serializeVrm } from './vrm.js';
+import { VrmModel, VrmRenderer } from './vrm.js';
 import { setupStartDialog } from './components/start-dialog.js';
 import { } from './components/menu-section-emotion.js';
 import { traverseMorphableMesh, flatten, objectToTreeDebug, blendshapeToEmotionId } from './mev-util.js';
@@ -78,7 +78,7 @@ function importFbxAsVrm(fileContent) {
  * Handle main editor UI & all state. Start dialog is NOT part of this class.
  * 
  * Design:
- *  - Canonical VRM data = THREE.Object3D & VRM-extension
+ *  - Canonical VRM data = VrmModel
  *  - Converter = Converts "VRM data" into ViewModel quickly, realtime.
  *  - Vue data = ViewModel. Write-operation directly goes to VRM data (and notifies converter).
  * 
@@ -128,7 +128,7 @@ class MevApplication {
             data: {
                 // Global
                 startedLoading: false,
-                vrmRoot: null,
+                vrmRoot: null, // VrmModel
                 showEmotionPane: false,
                 isFatalError: false,
 
@@ -140,9 +140,10 @@ class MevApplication {
             },
             watch: {
                 vrmRoot: function (newValue, oldValue) {
-                    if (oldValue === null) {
+                    if (newValue !== oldValue) {
                         this._setEmotion(this.currentEmotionId);
                         this._computeAvatarHeight();
+                        this._calculateFinalSizeAsync();
                         app._createHeightIndicator(this.avatarHeight);
                     }
                 },
@@ -160,39 +161,41 @@ class MevApplication {
                     }
                 },
                 _setEmotion(emotionId) {
-                    const nameToBlendshape = new Map(this.blendshapes.map(bs => [bs.id, bs]));
-                    const blendshape = nameToBlendshape.get(emotionId);
+                    const blendshape = this.blendshapes.find(bs => bs.id === emotionId);
 
                     // Reset all morph.
-                    traverseMorphableMesh(this.vrmRoot, mesh => mesh.morphTargetInfluences.fill(0));
+                    traverseMorphableMesh(app.vrmRenderer.getThreeInstance(), mesh => mesh.morphTargetInfluences.fill(0));
 
                     if (!blendshape) {
                         return;
                     }
 
-                    // Set new morph set.
+                    // Set new morph set to view.
                     blendshape.weightConfigs.forEach(weightConfig => {
                         traverseMorphableMesh(weightConfig.meshRef, mesh => {
                             mesh.morphTargetInfluences[weightConfig.morphIndex] = weightConfig.weight * 0.01;  // % -> actual number
                         });
                     });
                 },
-                calculateFinalSizeAsync: function () {
-                    serializeVrm(this.vrmRoot).then(glbBuffer => {
-                        this.finalVrmSizeApprox = (glbBuffer.byteLength * 1e-6).toFixed(1) + "MB";
+                _calculateFinalSizeAsync: function () {
+                    this.vrmRoot.serialize().then(buffer => {
+                        this.finalVrmSizeApprox = (buffer.byteLength * 1e-6).toFixed(1) + "MB";
                     });
                 },
                 downloadVrm: function (event) {
                     console.log("Download requested");
-                    serializeVrm(app.vrmRoot).then(glbBuffer => {
-                        saveAs(new Blob([glbBuffer], { type: "application/octet-stream" }), "test.vrm");
+
+                    this.vrmRoot.serialize().then(buffer => {
+                        saveAs(new Blob([buffer], { type: "application/octet-stream" }), "test.vrm");
                     });
                 },
                 toggleVisible: function (partName) {
+                    // TODO: Need to retain visibility of all mesh, and then supply that to VrmRenderer.
                     // TODO: Think whether we should use flattened objects everywhere or retain tree.
                     const flattenedObjects = [];
-                    app.vrmRoot.traverse(o => flattenedObjects.push(o));
 
+                    const instance = app.vrmRenderer.getThreeInstance();
+                    instance.traverse(o => flattenedObjects.push(o));
                     flattenedObjects.filter(obj => obj.type === 'Mesh' || obj.type === 'SkinnedMesh')
                         .forEach(mesh => {
                             if (mesh.name === partName) {
@@ -210,7 +213,8 @@ class MevApplication {
                     if (this.vrmRoot === null) {
                         return 0;
                     }
-                    this.avatarHeight = (new THREE.Box3().setFromObject(this.vrmRoot)).getSize(new THREE.Vector3()).y;
+                    // TODO: Ideally, this is calculatable without Renderer.
+                    this.avatarHeight = (new THREE.Box3().setFromObject(app.vrmRenderer.getThreeInstance())).getSize(new THREE.Vector3()).y;
                 }
             },
             computed: {
@@ -239,8 +243,9 @@ class MevApplication {
                     if (this.vrmRoot === null) {
                         return "";
                     }
+                    // TODO: Ideally, this is calculatable without Renderer.
                     const stats = { numTris: 0 };
-                    this.vrmRoot.traverse(obj => {
+                    app.vrmRenderer.getThreeInstance().traverse(obj => {
                         if (obj.type === 'Mesh' || obj.type === 'SkinnedMesh') {
                             const numVerts = obj.geometry.index === null ? obj.geometry.attributes.position.count : obj.geometry.index.count;
                             if (numVerts % 3 != 0) {
@@ -252,37 +257,44 @@ class MevApplication {
                     return "△" + stats.numTris;
                 },
                 allWeightCandidates: function () {
-                    const candidates = [];
-                    traverseMorphableMesh(this.vrmRoot, mesh => {
-                        Object.keys(mesh.morphTargetDictionary).forEach(morphName => {
-                            candidates.push({
-                                mesh: mesh,
-                                morphIndex: mesh.morphTargetDictionary[morphName],
-                                morphName: morphName,
+                    var candidates = [];
+                    this.vrmRoot.gltf.meshes.forEach((mesh, meshIndex) => {
+                        mesh.primitives.forEach(prim => {
+                            if (!prim.extras) {
+                                return;
+                            }
+                            prim.extras.targetNames.forEach((morphName, morphIndex) => {
+                                candidates.push({
+                                    // Maybe this can be moved to menu-section-emotion?
+                                    mesh: app.vrmRenderer.getMeshByIndex(meshIndex),
+                                    meshIndex: meshIndex,
+                                    morphIndex: morphIndex,
+                                    morphName: morphName,
+                                });
                             });
                         });
                     });
                     return candidates;
                 },
                 blendshapeMaster: function () {
-                    return this.vrmRoot.vrmExt.blendShapeMaster;
+                    if (this.vrmRoot === null) {
+                        return null;
+                    }
+                    return this.vrmRoot.gltf.extensions.VRM.blendShapeMaster;
                 },
                 // Deprecated: Use emotionGroups
                 blendshapes: function () {
                     if (this.vrmRoot === null) {
                         return [];
                     }
-                    return this.vrmRoot.vrmExt.blendShapeMaster.blendShapeGroups.map(bs => {
+                    return this.vrmRoot.gltf.extensions.VRM.blendShapeMaster.blendShapeGroups.map(bs => {
+
                         const binds = bs.binds.map(bind => {
-                            const targetMesh = (bind.mesh.type === "Group") ? bind.mesh.children[0] : bind.mesh;
-                            const morphIndexToName = {};
-                            Object.keys(targetMesh.morphTargetDictionary).forEach(key => {
-                                morphIndexToName[targetMesh.morphTargetDictionary[key]] = key;
-                            });
+                            const mesh = this.vrmRoot.gltf.meshes[bind.mesh];
                             return {
-                                meshName: bind.mesh.name,
-                                meshRef: bind.mesh,
-                                morphName: morphIndexToName[bind.index],
+                                meshName: mesh.name,
+                                meshRef: app.vrmRenderer.getMeshByIndex(bind.mesh),
+                                morphName: mesh.primitives[0].extras.targetNames[bind.index],
                                 morphIndex: bind.index,
                                 weight: bind.weight,
                             };
@@ -354,14 +366,14 @@ class MevApplication {
                         return [];
                     }
                     const blendShapeMeshes = new Set();
-                    if (this.vrmRoot.vrmExt !== undefined) {
-                        this.vrmRoot.vrmExt.blendShapeMaster.blendShapeGroups.forEach(group => {
+                    if (app.vrmRenderer.getThreeInstance().vrmExt !== undefined) {
+                        app.vrmRenderer.getThreeInstance().vrmExt.blendShapeMaster.blendShapeGroups.forEach(group => {
                             group.binds.forEach(bind => blendShapeMeshes.add(bind.mesh));
                         });
                     }
 
                     const flattenedObjects = [];
-                    this.vrmRoot.traverse(o => flattenedObjects.push(o));
+                    app.vrmRenderer.getThreeInstance().traverse(o => flattenedObjects.push(o));
                     return flattenedObjects
                         .filter(obj => obj.type === 'Mesh' || obj.type === 'SkinnedMesh')
                         .map(mesh => {
@@ -404,39 +416,24 @@ class MevApplication {
         const reader = new FileReader();
         const app = this;
         const scene = this.scene;
-        reader.addEventListener('load', () => {
-            if (isFbx) {
-                importFbxAsVrm(reader.result).then(fbx => {
-                    scene.add(fbx);
-                    app.vrmRoot = fbx;
-                    app.vm.vrmRoot = fbx;
-                    setTimeout(() => {
-                        scene.add(app.createTreeVisualizer(fbx));
-                        app.recalculateFinalSize();
-                    }, 100);
-                });
-                return;
-            }
-
-            const gltfLoader = new THREE.GLTFLoader();
-            gltfLoader.load(
-                reader.result,
-                gltfJson => {
-                    parseVrm(gltfJson).then(vrmObj => {
-                        scene.add(vrmObj);
-                        //scene.add(app.createTreeVisualizer(vrmObj));
-                        app.vrmRoot = vrmObj;
-                        app.vm.vrmRoot = vrmObj;
-                        app.recalculateFinalSize();
+        if (isFbx) {
+            // Not supported
+        } else {
+            // VRM
+            reader.addEventListener("load", () => {
+                VrmModel.deserialize(reader.result).then(vrmModel => {
+                    app.vrmRenderer = new VrmRenderer(vrmModel);  // Non-Vue binder of vrmModel.
+                    app.vrmRenderer.getThreeInstanceAsync().then(instance => {
+                        console.log("gTIA", instance);
+                        this.scene.add(instance);
+                        // Ideally, this shouldn't need to wait for instance.
+                        // But current MevApplication VM depends A LOT on Three instance...
+                        app.vm.vrmRoot = vrmModel;  // Vue binder of vrmModel.
                     });
-                },
-                () => { },
-                error => {
-                    console.error("glTF load failed", error);
-                    app.vm.isFatalError = true;
                 });
-        });
-        reader.readAsDataURL(vrmFile);
+            });
+            reader.readAsArrayBuffer(vrmFile);
+        }
     }
 
     /**
@@ -460,10 +457,6 @@ class MevApplication {
         const mat = new THREE.LineBasicMaterial({ color: "red" });
         mat.depthTest = false;
         return new THREE.LineSegments(geom, mat);
-    }
-
-    recalculateFinalSize() {
-        this.vm.calculateFinalSizeAsync();
     }
 
     static _convertImageToDataUrlWithHeight(img, targetHeight) {

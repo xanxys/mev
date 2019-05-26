@@ -1,5 +1,92 @@
 // ES6
 import * as vrm_mat from './vrm-materials.js';
+import { deserializeGlb, serializeGlb } from './gltf.js';
+import { GLTFLoader } from './gltf-three.js';
+
+/**
+ * Immutable representation of a single, whole .vrm data.
+ * Guranteed to be (de-)serializable from/to a blob.
+ */
+export class VrmModel {
+    // Private
+    /**
+     * @param {Object} gltf: glTF structure
+     * @param {Array<ArrayBuffer>} buffers 
+     */
+    constructor(gltf, buffers) {
+        this.gltf = gltf;
+        this.buffers = buffers;
+    }
+
+    /**
+     * 
+     * @param {ArrayBuffer} blob
+     * @returns {Promise<VrmModel>}
+     */
+    static deserialize(blob) {
+        const gltf = deserializeGlb(blob);
+        return new Promise((resolve, _reject) => {
+            resolve(new VrmModel(gltf.json, gltf.buffers));
+        });
+    }
+
+    /** 
+     * Asynchronously serializes model to a VRM data.
+     * Repeated calls are guranteed to return exactly same data.
+     * @returns {Promise<ArrayBuffer>}
+     */
+    serialize() {
+        return new Promise((resolve, _reject) => {
+            resolve(serializeGlb({
+                json: this.gltf,
+                buffers: this.buffers,
+            }));
+        });
+    }
+
+    // HACK: Define proper way to specify a node.
+    // "mutation" methods. These methods will return new instance of VrmModel with requested updates.
+
+    countTris() {
+        return 0;
+    }
+}
+
+/**
+ * Single instantiated view of a VrmModel as a positionable THREE.Object3D.
+ * Possibly caches THREE.Object3D / Texture etc for quick invalidate.
+ */
+export class VrmRenderer {
+    constructor(model) {
+        this.model = model;
+        this.instance = null;
+    }
+
+    /** Returns a singleton correponding to the model. No need to re-fetch after invalidate(). */
+    getThreeInstance() {
+        return this.instance;
+    }
+
+    getThreeInstanceAsync() {
+        if (this.instance !== null) {
+            return Promise.resolve(this.instance);
+        }
+
+        const gltfLoader = new GLTFLoader();
+        return gltfLoader.parse(this.model.gltf, this.model.buffers[0]).then(parseVrm).then(instance => {
+            this.instance = instance;
+            return instance;
+        })
+    }
+
+    getMeshByIndex(meshIndex) {
+        return this.instance.mapper.mapper.mapMesh(meshIndex);
+    }
+
+    /** Notifies that underlying model was updated, and instance needs to change. */
+    invalidate(newModel) {
+    }
+}
 
 /**
  * Similar to root.traverse(fn), but only executes fn when object is a mesh.
@@ -15,171 +102,13 @@ function traverseMesh(root, fn) {
     });
 }
 
-/**
- * Serialize glTF JSON & binary buffers into a single binary (GLB format).
- * Spec: https://github.com/KhronosGroup/glTF/blob/master/specification/2.0/README.md#glb-file-format-specification
- * @return {Promise<ArrayBuffer>}
- */
-function serializeGlb(obj) {
-    const outputJSON = obj.json;
-    const buffers = obj.buffers;
-
-    function getPaddedBufferSize(bufferSize) {
-        return Math.ceil(bufferSize / 4) * 4;
-    }
-
-    function getPaddedArrayBuffer(arrayBuffer, paddingByte) {
-        paddingByte = paddingByte || 0;
-        var paddedLength = getPaddedBufferSize(arrayBuffer.byteLength);
-        if (paddedLength === arrayBuffer.byteLength) {
-            return arrayBuffer;
-        }
-
-        const array = new Uint8Array(paddedLength);
-        array.set(new Uint8Array(arrayBuffer));
-        if (paddingByte !== 0) {
-            for (var i = arrayBuffer.byteLength; i < paddedLength; i++) {
-                array[i] = paddingByte;
-            }
-        }
-        return array.buffer;
-    }
-
-    // Merge buffers.
-    const blob = new Blob(buffers, { type: 'application/octet-stream' });
-
-    // Update bytelength of the single buffer.
-    outputJSON.buffers[0].byteLength = blob.size;
-
-    const GLB_HEADER_BYTES = 12;
-    const GLB_HEADER_MAGIC = 0x46546C67;
-    const GLB_VERSION = 2;
-
-    const GLB_CHUNK_PREFIX_BYTES = 8;
-    const GLB_CHUNK_TYPE_JSON = 0x4E4F534A;
-    const GLB_CHUNK_TYPE_BIN = 0x004E4942;
-
-    return new Promise((resolve, reject) => {
-        const reader = new window.FileReader();
-        reader.onloadend = function () {
-            // Binary chunk.
-            var binaryChunk = getPaddedArrayBuffer(reader.result);
-            var binaryChunkPrefix = new DataView(new ArrayBuffer(GLB_CHUNK_PREFIX_BYTES));
-            binaryChunkPrefix.setUint32(0, binaryChunk.byteLength, true);
-            binaryChunkPrefix.setUint32(4, GLB_CHUNK_TYPE_BIN, true);
-
-            // JSON chunk.
-            var jsonChunk = getPaddedArrayBuffer(new TextEncoder().encode(JSON.stringify(outputJSON)).buffer, 0x20);
-            var jsonChunkPrefix = new DataView(new ArrayBuffer(GLB_CHUNK_PREFIX_BYTES));
-            jsonChunkPrefix.setUint32(0, jsonChunk.byteLength, true);
-            jsonChunkPrefix.setUint32(4, GLB_CHUNK_TYPE_JSON, true);
-
-            // GLB header.
-            var header = new ArrayBuffer(GLB_HEADER_BYTES);
-            var headerView = new DataView(header);
-            headerView.setUint32(0, GLB_HEADER_MAGIC, true);
-            headerView.setUint32(4, GLB_VERSION, true);
-            var totalByteLength = GLB_HEADER_BYTES
-                + jsonChunkPrefix.byteLength + jsonChunk.byteLength
-                + binaryChunkPrefix.byteLength + binaryChunk.byteLength;
-            headerView.setUint32(8, totalByteLength, true);
-
-            var glbBlob = new Blob([
-                header,
-                jsonChunkPrefix,
-                jsonChunk,
-                binaryChunkPrefix,
-                binaryChunk
-            ], { type: 'application/octet-stream' });
-
-            var glbReader = new window.FileReader();
-            glbReader.readAsArrayBuffer(glbBlob);
-            glbReader.onloadend = function () {
-                resolve(glbReader.result);
-            };
-        };
-        reader.readAsArrayBuffer(blob);
-    });
-}
-
-/**
- * @param {THREE.Object3D} vrmRoot, must have .vrm_ext field
- * @return {Promise<ArrayBuffer>} vrm (.glb format) blob
- */
-export function serializeVrm(vrmRoot) {
-    const exporter = new THREE.GLTFExporter();
-    const options = {
-        includeCustomExtensions: true,
-    };
-
-    const scene = new THREE.Scene();
-    // Push directly to children instead of calling `add` to prevent
-    // modify the .parent and break its original scene and hierarchy
-    scene.children.push(vrmRoot);
-    const gltf_and_buffers = new Promise((resolve, reject) => {
-        exporter.parse(scene, gltf => {
-            console.log(gltf);
-            resolve(gltf);
-        }, options);
-    });
-
-    function attachVrmExtension(gltfResult) {
-        console.log("Attaching VRM", vrmRoot.vrmExt, "to", gltfResult);
-        if (gltfResult.json.extensionsUsed === undefined) {
-            gltfResult.json.extensionsUsed = [];
-        }
-        if (gltfResult.json.extensions === undefined) {
-            gltfResult.json.extensions = {};
-        }
-
-        const refToId = new VrmExtensionMapper({
-            mapNode: nodeRef => {
-                const nodeId = gltfResult.nodeMap.get(nodeRef);
-                if (nodeId === undefined) {
-                    console.warn("mapNode failed (not found in nodeMap)", nodeRef);
-                    return 0;
-                } else {
-                    return nodeId;
-                }
-            },
-            mapMesh: meshRef => {
-                // Looks suspicious. Why skins instead of meshes?
-                const skinId = gltfResult.skins.findIndex(e => e === meshRef[0]);
-                if (skinId < 0) {
-                    console.error("mapNode failed (not found in skins)", meshRef);
-                    return 0;
-                } else {
-                    return skinId;
-                }
-            },
-            mapTexture: texRef => {
-                for (const [tex, texId] of gltfResult.cachedData.textures.entries()) {
-                    if (texRef === tex) {
-                        return texId;
-                    }
-                }
-                console.error("mapTexture failed (not found)", texRef);
-                return 0;
-            },
-        });
-
-        const extWithIds = refToId.convertVrm(vrmRoot.vrmExt);
-        extWithIds["exporterVersion"] = "me/v";
-
-        gltfResult.json.extensions["VRM"] = extWithIds;
-        gltfResult.json.extensionsUsed = Array.from(new Set(["VRM", ...gltfResult.json.extensionsUsed]));
-        return gltfResult;
-    }
-
-    return gltf_and_buffers.then(attachVrmExtension).then(serializeGlb);
-}
 
 /**
  * 
  * @param {Object} gltf object returned by THREE.GLTFLoader
- * @return {Promise<THREE.Object3D>} will have .vrm_ext field.
+ * @return {Promise<THREE.Object3D>} will have .vrmExt & .mapper field.
  */
-export function parseVrm(gltf) {
+function parseVrm(gltf) {
     console.log("Parsing glTF as VRM", gltf);
 
     const dataPromise = Promise.all([
@@ -236,6 +165,7 @@ export function parseVrm(gltf) {
         });
 
         gltf.scene.vrmExt = vrm;
+        gltf.scene.mapper = ref_to_real;
         return gltf.scene;
     });
 }

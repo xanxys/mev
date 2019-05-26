@@ -47,7 +47,7 @@ Vue.component(
                     bs.binds.push({
                         weight: newWeight * 100,
                         index: weightCandidate.morphIndex,
-                        mesh: weightCandidate.mesh,
+                        mesh: weightCandidate.meshIndex,
                     });
                 });
             },
