@@ -293,6 +293,7 @@ class MevApplication {
                             const mesh = this.vrmRoot.gltf.meshes[bind.mesh];
                             return {
                                 meshName: mesh.name,
+                                meshIndex: bind.mesh,
                                 meshRef: app.vrmRenderer.getMeshByIndex(bind.mesh),
                                 morphName: mesh.primitives[0].extras.targetNames[bind.index],
                                 morphIndex: bind.index,

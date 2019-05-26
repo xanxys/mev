@@ -22,7 +22,7 @@ Vue.component(
                         return;
                     }
                     bs.binds.forEach(bind => {
-                        if (bind.mesh === weightConfig.meshRef && bind.index === weightConfig.morphIndex) {
+                        if (bind.mesh === weightConfig.meshIndex && bind.index === weightConfig.morphIndex) {
                             bind.weight = newWeight * 100;
                         }
                     });
