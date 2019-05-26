@@ -6,8 +6,6 @@
 
 ## Roadmap
 
-0. VRM import / export works without breaking any data
-
 1. VRM component (bone) editing
 
 2. VRM material editing (simple things: hue shift / resize / download / upload)
@@ -20,8 +18,7 @@ You will need:
 
 * vrm.js
 * vrm-materials.js
-* third_party/three_gltf_loader.js
-* (external resource) hree.js (R103)
+* (external resource) three.js (R103)
 
 ## Development
 

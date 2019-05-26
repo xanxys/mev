@@ -1,5 +1,5 @@
 // ES6
-import { VrmModel, VrmRenderer, legacySerializeVrm } from './vrm.js';
+import { VrmModel, VrmRenderer } from './vrm.js';
 import { setupStartDialog } from './components/start-dialog.js';
 import { } from './components/menu-section-emotion.js';
 import { traverseMorphableMesh, flatten, objectToTreeDebug, blendshapeToEmotionId } from './mev-util.js';
@@ -185,7 +185,6 @@ class MevApplication {
                 downloadVrm: function (event) {
                     console.log("Download requested");
 
-                    legacySerializeVrm(app.vrmRenderer.getThreeInstance());
                     this.vrmRoot.serialize().then(buffer => {
                         saveAs(new Blob([buffer], { type: "application/octet-stream" }), "test.vrm");
                     });
@@ -289,11 +288,9 @@ class MevApplication {
                         return [];
                     }
                     return this.vrmRoot.gltf.extensions.VRM.blendShapeMaster.blendShapeGroups.map(bs => {
-                        
+
                         const binds = bs.binds.map(bind => {
                             const mesh = this.vrmRoot.gltf.meshes[bind.mesh];
-                            console.log("bind=", bind, mesh);
-                            
                             return {
                                 meshName: mesh.name,
                                 meshRef: app.vrmRenderer.getMeshByIndex(bind.mesh),

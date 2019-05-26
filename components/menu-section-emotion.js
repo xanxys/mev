@@ -44,8 +44,6 @@ Vue.component(
                     if (blendshapeToEmotionId(bs) !== this.emotionId) {
                         return;
                     }
-                    // yaba:
-                    console.log("WCand", weightCandidate);
                     bs.binds.push({
                         weight: newWeight * 100,
                         index: weightCandidate.morphIndex,
