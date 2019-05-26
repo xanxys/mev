@@ -79,6 +79,10 @@ export class VrmRenderer {
         })
     }
 
+    getMeshByIndex(meshIndex) {
+        return this.instance.mapper.mapper.mapMesh(meshIndex);
+    }
+
     /** Notifies that underlying model was updated, and instance needs to change. */
     invalidate(newModel) {
     }
@@ -208,7 +212,7 @@ function dumpGltfSceneTree(gltf) {
 /**
  * 
  * @param {Object} gltf object returned by THREE.GLTFLoader
- * @return {Promise<THREE.Object3D>} will have .vrmExt field.
+ * @return {Promise<THREE.Object3D>} will have .vrmExt & .mapper field.
  */
 function parseVrm(gltf) {
     console.log("Parsing glTF as VRM", gltf);
@@ -267,6 +271,7 @@ function parseVrm(gltf) {
         });
 
         gltf.scene.vrmExt = vrm;
+        gltf.scene.mapper = ref_to_real;
         return gltf.scene;
     });
 }

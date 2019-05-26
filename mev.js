@@ -161,8 +161,7 @@ class MevApplication {
                     }
                 },
                 _setEmotion(emotionId) {
-                    const nameToBlendshape = new Map(this.blendshapes.map(bs => [bs.id, bs]));
-                    const blendshape = nameToBlendshape.get(emotionId);
+                    const blendshape = this.blendshapes.find(bs => bs.id === emotionId);
 
                     // Reset all morph.
                     traverseMorphableMesh(app.vrmRenderer.getThreeInstance(), mesh => mesh.morphTargetInfluences.fill(0));
@@ -171,7 +170,7 @@ class MevApplication {
                         return;
                     }
 
-                    // Set new morph set.
+                    // Set new morph set to view.
                     blendshape.weightConfigs.forEach(weightConfig => {
                         traverseMorphableMesh(weightConfig.meshRef, mesh => {
                             mesh.morphTargetInfluences[weightConfig.morphIndex] = weightConfig.weight * 0.01;  // % -> actual number
@@ -259,38 +258,46 @@ class MevApplication {
                     return "△" + stats.numTris;
                 },
                 allWeightCandidates: function () {
-                    // TODO: this MUST BE obtainable without Renderer, because it'll involve model mutation.
-                    const candidates = [];
-                    traverseMorphableMesh(app.vrmRenderer.getThreeInstance(), mesh => {
-                        Object.keys(mesh.morphTargetDictionary).forEach(morphName => {
-                            candidates.push({
-                                mesh: mesh,
-                                morphIndex: mesh.morphTargetDictionary[morphName],
-                                morphName: morphName,
+                    var candidates = [];
+                    this.vrmRoot.gltf.meshes.forEach((mesh, meshIndex) => {
+                        mesh.primitives.forEach(prim => {
+                            if (!prim.extras) {
+                                return;
+                            }
+                            prim.extras.targetNames.forEach((morphName, morphIndex) => {
+                                candidates.push({
+                                    // Maybe this can be moved to menu-section-emotion?
+                                    mesh: app.vrmRenderer.getMeshByIndex(meshIndex),
+                                    meshIndex: meshIndex,
+                                    morphIndex: morphIndex,
+                                    morphName: morphName,
+                                });
                             });
                         });
                     });
                     return candidates;
                 },
                 blendshapeMaster: function () {
-                    return app.vrmRenderer.getThreeInstance().vrmExt.blendShapeMaster;
+                    if (this.vrmRoot === null) {
+                        return null;
+                    }
+                    return this.vrmRoot.gltf.extensions.VRM.blendShapeMaster;
                 },
                 // Deprecated: Use emotionGroups
                 blendshapes: function () {
                     if (this.vrmRoot === null) {
                         return [];
                     }
-                    return app.vrmRenderer.getThreeInstance().vrmExt.blendShapeMaster.blendShapeGroups.map(bs => {
+                    return this.vrmRoot.gltf.extensions.VRM.blendShapeMaster.blendShapeGroups.map(bs => {
+                        
                         const binds = bs.binds.map(bind => {
-                            const targetMesh = (bind.mesh.type === "Group") ? bind.mesh.children[0] : bind.mesh;
-                            const morphIndexToName = {};
-                            Object.keys(targetMesh.morphTargetDictionary).forEach(key => {
-                                morphIndexToName[targetMesh.morphTargetDictionary[key]] = key;
-                            });
+                            const mesh = this.vrmRoot.gltf.meshes[bind.mesh];
+                            console.log("bind=", bind, mesh);
+                            
                             return {
-                                meshName: bind.mesh.name,
-                                meshRef: bind.mesh,
-                                morphName: morphIndexToName[bind.index],
+                                meshName: mesh.name,
+                                meshRef: app.vrmRenderer.getMeshByIndex(bind.mesh),
+                                morphName: mesh.primitives[0].extras.targetNames[bind.index],
                                 morphIndex: bind.index,
                                 weight: bind.weight,
                             };
