@@ -362,6 +362,13 @@ class MevApplication {
                     const blendshape = nameToBlendshape.get(this.currentEmotionId);
                     return blendshape ? blendshape.weightConfigs : [];
                 },
+                springs: function() {
+                    if (this.vrmRoot === null) {
+                        return [];
+                    }
+                    const secAnim = this.vrmRoot.gltf.extensions.VRM.secondaryAnimation;
+                    return (secAnim.boneGroups.concat(secAnim.colliderGroups)).map(g => JSON.stringify(g));
+                },
                 parts: function () {
                     if (this.vrmRoot === null) {
                         return [];
@@ -425,7 +432,6 @@ class MevApplication {
                 VrmModel.deserialize(reader.result).then(vrmModel => {
                     app.vrmRenderer = new VrmRenderer(vrmModel);  // Non-Vue binder of vrmModel.
                     app.vrmRenderer.getThreeInstanceAsync().then(instance => {
-                        console.log("gTIA", instance);
                         this.scene.add(instance);
                         // Ideally, this shouldn't need to wait for instance.
                         // But current MevApplication VM depends A LOT on Three instance...
