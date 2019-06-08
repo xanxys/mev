@@ -189,19 +189,6 @@ class MevApplication {
                         saveAs(new Blob([buffer], { type: "application/octet-stream" }), "test.vrm");
                     });
                 },
-                toggleVisible: function (meshIx, primIx) {
-                    // TODO: Need to retain visibility of all mesh in ViewModel, outside of three instance.
-                    const flattenedObjects = [];
-
-                    const instance = app.vrmRenderer.getThreeInstance();
-                    instance.traverse(o => flattenedObjects.push(o));
-                    flattenedObjects.filter(obj => obj.type === 'Mesh' || obj.type === 'SkinnedMesh')
-                        .forEach(mesh => {
-                            if (mesh.name === partName) {
-                                mesh.visible = !mesh.visible;
-                            }
-                        });
-                },
                 clickBackButton: function () {
                     this.showEmotionPane = false;
                 },
