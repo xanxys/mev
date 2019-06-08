@@ -133,7 +133,7 @@ export class VrmModel {
      */
     _getBufferView(bufferViewIx) {
         const bufferView = this.gltf.bufferViews[bufferViewIx];
-        return this.buffers[bufferView.buffer].slice(bufferView.byteOffset, bufferView.byteOffset + bufferView.byteLength);;
+        return this.buffers[bufferView.buffer].slice(bufferView.byteOffset, bufferView.byteOffset + bufferView.byteLength);
     }
 }
 
@@ -145,6 +145,7 @@ export class VrmRenderer {
     constructor(model) {
         this.model = model;
         this.instance = null;
+        this.instanceContainer = null;
     }
 
     /** Returns a singleton correponding to the model. No need to re-fetch after invalidate(). */
@@ -160,8 +161,12 @@ export class VrmRenderer {
         const gltfLoader = new GLTFLoader();
         return gltfLoader.parse(this.model.gltf, this.model.buffers[0]).then(parseVrm).then(instance => {
             this.instance = instance;
+            if (this.instanceContainer !== null) {
+                console.log("Re-inserting three instance");
+                this.instanceContainer.add(instance);
+            }
             return instance;
-        })
+        });
     }
 
     getMeshByIndex(meshIndex) {
@@ -169,7 +174,11 @@ export class VrmRenderer {
     }
 
     /** Notifies that underlying model was updated, and instance needs to change. */
-    invalidate(newModel) {
+    invalidate() {
+        this.instanceContainer = this.instance.parent;
+        this.instanceContainer.remove(this.instance);
+        this.instance = null;
+        this.getThreeInstanceAsync();
     }
 }
 

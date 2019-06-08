@@ -152,7 +152,9 @@ class MevApplication {
             },
             watch: {
                 vrmRoot: function (newValue, oldValue) {
+                    console.log("vrmRoot.watch");
                     if (newValue !== oldValue || newValue.version !== oldValue.version) {
+                        console.log("Updating vrmRoot");
                         this._setEmotion(this.currentEmotionId);
                         this._computeAvatarHeight();
                         this._calculateFinalSizeAsync();
@@ -161,6 +163,10 @@ class MevApplication {
                 },
             },
             methods: {
+                updateVrm: function (newVrm) {
+                    this.vrmRoot = newVrm;
+                    app.vrmRenderer.invalidate();
+                },
                 refreshPage: function () {
                     location.reload();
                 },
@@ -176,6 +182,7 @@ class MevApplication {
                     this.currentImageId = imageId;
                     this.currentPane = PANE_MODE.IMAGE;
                 },
+                // TODO: Do these via vrmRenderer
                 _setEmotion(emotionId) {
                     const blendshape = this.blendshapes.find(bs => bs.id === emotionId);
 
@@ -290,6 +297,8 @@ class MevApplication {
                     if (this.vrmRoot === null) {
                         return [];
                     }
+                    this.vrmRoot.version;
+
                     return this.vrmRoot.gltf.extensions.VRM.blendShapeMaster.blendShapeGroups.map(bs => {
 
                         const binds = bs.binds.map(bind => {
@@ -297,6 +306,7 @@ class MevApplication {
                             return {
                                 meshName: mesh.name,
                                 meshIndex: bind.mesh,
+                                // TODO: Remove this
                                 meshRef: app.vrmRenderer.getMeshByIndex(bind.mesh),
                                 morphName: mesh.primitives[0].extras.targetNames[bind.index],
                                 morphIndex: bind.index,
@@ -376,6 +386,7 @@ class MevApplication {
                     if (this.vrmRoot === null) {
                         return [];
                     }
+                    this.vrmRoot.version; // force depend
 
                     const parts = [];
                     this.vrmRoot.gltf.meshes.forEach((mesh, meshIx) => {
@@ -443,7 +454,7 @@ class MevApplication {
                         this.scene.add(instance);
                         // Ideally, this shouldn't need to wait for instance.
                         // But current MevApplication VM depends A LOT on Three instance...
-                        app.vm.vrmRoot = vrmModel;  // Vue binder of vrmModel.
+                        app.vm.vrmRoot = vrmModel; // Vue binder of vrmModel.
                     });
                 });
             });

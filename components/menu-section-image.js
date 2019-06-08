@@ -14,6 +14,7 @@ Vue.component(
                 reader.addEventListener("load", () => {
                     const image = this.vrm.gltf.images[this.imageId];
                     this.vrm.setBufferViewData(image.bufferView, reader.result);
+                    this.$emit("vrm-change", this.vrm);
                 });
                 reader.readAsArrayBuffer(imageFile);
             },
@@ -25,6 +26,7 @@ Vue.component(
         },
         computed: {
             textureUrl: function () {
+                this.vrm.version; // force depend
                 return this.vrm.getImageAsDataUrl(this.imageId);
             },
             width: function () {

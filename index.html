@@ -47,7 +47,7 @@
       :blendshape-master="blendshapeMaster">
     </menu-section-emotion>
 
-    <menu-section-image v-if="showImagePane" :vrm="vrmRoot" :image-id="currentImageId">
+    <menu-section-image v-if="showImagePane" :vrm="vrmRoot" :image-id="currentImageId" v-on:vrm-change="updateVrm">
     </menu-section-image>
 
     <section id="loading_progress" style="padding: 8px" v-if="isLoading">

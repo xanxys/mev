@@ -14,6 +14,7 @@ Vue.component(
             onChangeWeight: function (event, weightConfig) {
                 const newWeight = event.srcElement.valueAsNumber * 0.01;
 
+                // TODO: do this via VrmRenderer
                 traverseMorphableMesh(weightConfig.meshRef, mesh => {
                     mesh.morphTargetInfluences[weightConfig.morphIndex] = newWeight;
                 });
