@@ -2,6 +2,7 @@
 import { VrmModel, VrmRenderer } from './vrm.js';
 import { setupStartDialog } from './components/start-dialog.js';
 import { } from './components/menu-section-emotion.js';
+import { } from './components/menu-section-image.js';
 import { traverseMorphableMesh, flatten, objectToTreeDebug, blendshapeToEmotionId } from './mev-util.js';
 
 const EMOTION_PRESET_GROUPING = [
@@ -74,6 +75,12 @@ function importFbxAsVrm(fileContent) {
     });
 }
 
+const PANE_MODE = {
+    DEFAULT: 0,
+    EMOTION: 1,
+    IMAGE: 2,
+};
+
 /**
  * Handle main editor UI & all state. Start dialog is NOT part of this class.
  * 
@@ -129,7 +136,9 @@ class MevApplication {
                 // Global
                 startedLoading: false,
                 vrmRoot: null, // VrmModel
-                showEmotionPane: false,
+
+                // UI mode
+                currentPane: PANE_MODE.DEFAULT,
                 isFatalError: false,
 
                 // Main Pane
@@ -154,11 +163,14 @@ class MevApplication {
                 },
                 clickEmotion: function (emotionId) {
                     if (this.currentEmotionId === emotionId) {
-                        this.showEmotionPane = true;
+                        this.currentPane = PANE_MODE.EMOTION;
                     } else {
                         this.currentEmotionId = emotionId;
                         this._setEmotion(emotionId);
                     }
+                },
+                clickImage: function (imageId) {
+                    this.currentPane = PANE_MODE.IMAGE;
                 },
                 _setEmotion(emotionId) {
                     const blendshape = this.blendshapes.find(bs => bs.id === emotionId);
@@ -190,7 +202,7 @@ class MevApplication {
                     });
                 },
                 clickBackButton: function () {
-                    this.showEmotionPane = false;
+                    this.currentPane = PANE_MODE.DEFAULT;
                 },
                 _computeAvatarHeight: function () {
                     // For some reason, according to profiler,
@@ -206,19 +218,29 @@ class MevApplication {
             computed: {
                 // Toolbar & global pane state.
                 toolbarTitle: function () {
-                    if (this.showEmotionPane) {
-                        const nameToBlendshape = new Map(this.blendshapes.map(bs => [bs.id, bs]));
-                        const blendshape = nameToBlendshape.get(this.currentEmotionId);
-                        return "表情:" + blendshape.label;
-                    } else {
-                        return this.avatarName;
+                    switch (this.currentPane) {
+                        case PANE_MODE.DEFAULT:
+                            return this.avatarName;
+                        case PANE_MODE.EMOTION:
+                            const nameToBlendshape = new Map(this.blendshapes.map(bs => [bs.id, bs]));
+                            const blendshape = nameToBlendshape.get(this.currentEmotionId);
+                            return "表情:" + blendshape.label;
+                        default:
+                            console.error("Unknown UI mode: ", this.currentPane);
+                            return "";
                     }
                 },
                 showBackButton: function () {
-                    return this.showEmotionPane;
+                    return this.currentPane !== PANE_MODE.DEFAULT;
                 },
                 showMainPane: function () {
-                    return !this.showEmotionPane && this.vrmRoot !== null;
+                    return this.currentPane === PANE_MODE.DEFAULT && this.vrmRoot !== null;
+                },
+                showEmotionPane: function () {
+                    return this.currentPane === PANE_MODE.EMOTION;
+                },
+                showImagePane: function () {
+                    return this.currentPane === PANE_MODE.IMAGE;
                 },
                 isLoading: function () {
                     return this.startedLoading && (this.vrmRoot === null && !this.isFatalError);
@@ -349,25 +371,30 @@ class MevApplication {
                         return [];
                     }
 
-                    const getTextureUrl = texId => {
-                        const imgId = this.vrmRoot.gltf.textures[texId].source;
-                        return this.vrmRoot.getImageAsDataUrl(imgId);
-                    };
-
                     const parts = [];
                     this.vrmRoot.gltf.meshes.forEach((mesh, meshIx) => {
                         mesh.primitives.forEach((prim, primIx) => {
                             const mat = this.vrmRoot.gltf.materials[prim.material];
-                            parts.push({
+                            const part = {
                                 visibility: true,
                                 // (meshIx, primIx) act as VRM-global prim id.
                                 meshIx: meshIx,
                                 primIx: primIx,
                                 name: mesh.name + ":" + primIx,
                                 shaderName: MevApplication._getShaderNameFromMaterial(this.vrmRoot, prim.material),
-                                textureUrl: mat.pbrMetallicRoughness.baseColorTexture !== undefined ? getTextureUrl(mat.pbrMetallicRoughness.baseColorTexture.index) : null,
+                                imageId: -1,
+                                textureUrl: null,
                                 numTris: "△" + this.vrmRoot.countPrimitiveTris(prim),
-                            });
+                            };
+
+                            if (mat.pbrMetallicRoughness.baseColorTexture !== undefined) {
+                                const texId = mat.pbrMetallicRoughness.baseColorTexture.index;
+                                const imageId = this.vrmRoot.gltf.textures[texId].source;
+                                part.imageId = imageId;
+                                part.textureUrl = this.vrmRoot.getImageAsDataUrl(imageId);
+                            }
+
+                            parts.push(part);
                         });
                     });
                     return parts;

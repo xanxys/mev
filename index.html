@@ -47,6 +47,9 @@
       :blendshape-master="blendshapeMaster">
     </menu-section-emotion>
 
+    <menu-section-image v-if="showImagePane">
+    </menu-section-image>
+
     <section id="loading_progress" style="padding: 8px" v-if="isLoading">
     </section>
 
@@ -79,7 +82,7 @@
                 style="float: right; padding-right: 4px">{{part.numTris}}</span></span>
             </label>
             <br />
-            <img style="border: 1px; border-color:black; height: 48px" v-bind:src="part.textureUrl" /><span
+            <img style="border: 1px; border-color:black; height: 48px" v-bind:src="part.textureUrl" @click="clickImage(part.imageId)"/><span
               class="normal-text">{{part.shaderName}}</span>
           </div>
         </div>
@@ -120,6 +123,20 @@
             <span style="color: #424242">{{weightSearchResult.namePreHighlight}}</span><span style="font-weight: bold">{{weightSearchResult.nameHighlight}}</span><span style="color: #424242">{{weightSearchResult.namePostHighlight}}</span>
           </div>
         </section>
+      </section>
+    </div>
+  </script>
+
+  <script type="text/x-template" id="menu_section_image">
+    <div>
+      <!-- Menu body -->
+      <section class="menu_body">
+        Texture 
+        Size
+        Download
+        Upload
+
+        Used by
       </section>
     </div>
   </script>
