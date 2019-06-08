@@ -47,7 +47,7 @@
       :blendshape-master="blendshapeMaster">
     </menu-section-emotion>
 
-    <menu-section-image v-if="showImagePane">
+    <menu-section-image v-if="showImagePane" :vrm="vrmRoot" :image-id="currentImageId">
     </menu-section-image>
 
     <section id="loading_progress" style="padding: 8px" v-if="isLoading">
@@ -82,8 +82,8 @@
                 style="float: right; padding-right: 4px">{{part.numTris}}</span></span>
             </label>
             <br />
-            <img style="border: 1px; border-color:black; height: 48px" v-bind:src="part.textureUrl" @click="clickImage(part.imageId)"/><span
-              class="normal-text">{{part.shaderName}}</span>
+            <img style="border: 1px; border-color:black; height: 48px" v-bind:src="part.textureUrl"
+              @click="clickImage(part.imageId)" /><span class="normal-text">{{part.shaderName}}</span>
           </div>
         </div>
       </section>
@@ -131,12 +131,14 @@
     <div>
       <!-- Menu body -->
       <section class="menu_body">
-        Texture 
-        Size
-        Download
-        Upload
+        <img :src="textureUrl" style="width: 224px"/>
+        {{width}}px × {{height}}px<br/>
 
-        Used by
+        <button @click="clickUpload">ファイルから設定</button>
+        <button @click="clickDownload">書き出し</button>
+        <br/>
+
+        <h2>画像が使われている場所</h2>
       </section>
     </div>
   </script>

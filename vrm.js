@@ -65,6 +65,15 @@ export class VrmModel {
         throw "Couldn't count tris";
     }
 
+    /**
+     * @param {number} imageId 
+     * @returns {ArrayBuffer}
+     */
+    getImageAsBuffer(imageId) {
+        const img = this.gltf.images[imageId];
+        return this._getBufferView(img.bufferView);
+    }
+
     getImageAsDataUrl(imageId) {
         const img = this.gltf.images[imageId];
         const data = this._getBufferView(img.bufferView);

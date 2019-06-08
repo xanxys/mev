@@ -144,8 +144,11 @@ class MevApplication {
                 // Main Pane
                 avatarName: "",
                 avatarHeight: "",
-                currentEmotionId: "neutral",
+                currentEmotionId: "neutral",  // shared with PANE_MODE.EMOTION
                 finalVrmSizeApprox: "",
+
+                // PANE_MODE.IMAGE
+                currentImageId: -1,
             },
             watch: {
                 vrmRoot: function (newValue, oldValue) {
@@ -170,6 +173,7 @@ class MevApplication {
                     }
                 },
                 clickImage: function (imageId) {
+                    this.currentImageId = imageId;
                     this.currentPane = PANE_MODE.IMAGE;
                 },
                 _setEmotion(emotionId) {
@@ -225,6 +229,8 @@ class MevApplication {
                             const nameToBlendshape = new Map(this.blendshapes.map(bs => [bs.id, bs]));
                             const blendshape = nameToBlendshape.get(this.currentEmotionId);
                             return "表情:" + blendshape.label;
+                        case PANE_MODE.IMAGE:
+                            return "画像: " + this.vrmRoot.gltf.images[this.currentImageId].name;
                         default:
                             console.error("Unknown UI mode: ", this.currentPane);
                             return "";
