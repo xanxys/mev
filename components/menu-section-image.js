@@ -7,7 +7,14 @@ Vue.component(
             };
         },
         methods: {
-            clickUpload: function () {
+            fileSelect: function (event) {
+                const imageFile = event.srcElement.files[0];
+
+                const reader = new FileReader();
+                reader.addEventListener("load", () => {
+                    // TODO: set reader.result to this.vrm @ imageId
+                });
+                reader.readAsArrayBuffer(imageFile);
             },
             clickDownload: function () {
                 const name = this.vrm.gltf.images[this.imageId].name;

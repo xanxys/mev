@@ -134,8 +134,10 @@
         <img :src="textureUrl" style="width: 224px"/>
         {{width}}px × {{height}}px<br/>
 
-        <button @click="clickUpload">ファイルから設定</button>
-        <button @click="clickDownload">書き出し</button>
+        <label class="filebutton" for="texupload">ファイルから設定</label>
+        <input id="texupload" style="opacity:0; position: absolute; z-index: -1" type="file" accept=".png" @change="fileSelect">
+
+        <label class="filebutton" @click="clickDownload" for="texdownload">書き出し</label>
         <br/>
 
         <h2>画像が使われている場所</h2>
