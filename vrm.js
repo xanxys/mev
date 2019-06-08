@@ -47,6 +47,16 @@ export class VrmModel {
     // HACK: Define proper way to specify a node.
     // "mutation" methods. These methods will return new instance of VrmModel with requested updates.
 
+    countTotalTris() {
+        var numTris = 0;
+        this.gltf.meshes.forEach(mesh => {
+            mesh.primitives.forEach(prim => {
+                numTris += this.countPrimitiveTris(prim);
+            });
+        });
+        return numTris;
+    }
+
     countPrimitiveTris(primitive) {
         if (primitive.mode === WEBGL_CONSTANTS.TRIANGLES) {
             const accessor = this.gltf.accessors[primitive.indices];

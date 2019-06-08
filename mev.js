@@ -242,18 +242,7 @@ class MevApplication {
                     if (this.vrmRoot === null) {
                         return "";
                     }
-                    // TODO: Ideally, this is calculatable without Renderer.
-                    const stats = { numTris: 0 };
-                    app.vrmRenderer.getThreeInstance().traverse(obj => {
-                        if (obj.type === 'Mesh' || obj.type === 'SkinnedMesh') {
-                            const numVerts = obj.geometry.index === null ? obj.geometry.attributes.position.count : obj.geometry.index.count;
-                            if (numVerts % 3 != 0) {
-                                console.warn("Unexpected GeometryBuffer format. Seems to contain non-triangles");
-                            }
-                            stats.numTris += Math.floor(numVerts / 3);
-                        }
-                    });
-                    return "△" + stats.numTris;
+                    return "△" + this.vrmRoot.countTotalTris();
                 },
                 allWeightCandidates: function () {
                     var candidates = [];
