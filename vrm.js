@@ -1,7 +1,7 @@
 // ES6
 import * as vrm_mat from './vrm-materials.js';
 import { deserializeGlb, serializeGlb } from './gltf.js';
-import { GLTFLoader } from './gltf-three.js';
+import { GLTFLoader, WEBGL_CONSTANTS } from './gltf-three.js';
 
 /**
  * Immutable representation of a single, whole .vrm data.
@@ -47,8 +47,33 @@ export class VrmModel {
     // HACK: Define proper way to specify a node.
     // "mutation" methods. These methods will return new instance of VrmModel with requested updates.
 
-    countTris() {
-        return 0;
+    countPrimitiveTris(primitive) {
+        if (primitive.mode === WEBGL_CONSTANTS.TRIANGLES) {
+            const accessor = this.gltf.accessors[primitive.indices];
+            return accessor.count / 3;
+        }
+        throw "Couldn't count tris";
+    }
+
+    getImageAsDataUrl(imageId) {
+        const img = this.gltf.images[imageId];
+        const data = this._getBufferView(img.bufferView);
+
+        const byteBuffer = new Uint8Array(data);
+        var asciiBuffer = "";
+        for (var i = 0; i < data.byteLength; i++) {
+            asciiBuffer += String.fromCharCode(byteBuffer[i]);
+        }
+        return "data:img/png;base64," + window.btoa(asciiBuffer);
+    }
+
+    /**
+     * @param {number} bufferViewOx: glTF bufferView index
+     * @returns {ArrayBuffer}: immutable blob slice
+     */
+    _getBufferView(bufferViewIx) {
+        const bufferView = this.gltf.bufferViews[bufferViewIx];
+        return this.buffers[bufferView.buffer].slice(bufferView.byteOffset, bufferView.byteOffset + bufferView.byteLength);;
     }
 }
 

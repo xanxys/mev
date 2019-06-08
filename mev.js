@@ -189,9 +189,8 @@ class MevApplication {
                         saveAs(new Blob([buffer], { type: "application/octet-stream" }), "test.vrm");
                     });
                 },
-                toggleVisible: function (partName) {
-                    // TODO: Need to retain visibility of all mesh, and then supply that to VrmRenderer.
-                    // TODO: Think whether we should use flattened objects everywhere or retain tree.
+                toggleVisible: function (meshIx, primIx) {
+                    // TODO: Need to retain visibility of all mesh in ViewModel, outside of three instance.
                     const flattenedObjects = [];
 
                     const instance = app.vrmRenderer.getThreeInstance();
@@ -362,7 +361,7 @@ class MevApplication {
                     const blendshape = nameToBlendshape.get(this.currentEmotionId);
                     return blendshape ? blendshape.weightConfigs : [];
                 },
-                springs: function() {
+                springs: function () {
                     if (this.vrmRoot === null) {
                         return [];
                     }
@@ -373,29 +372,29 @@ class MevApplication {
                     if (this.vrmRoot === null) {
                         return [];
                     }
-                    const blendShapeMeshes = new Set();
-                    if (app.vrmRenderer.getThreeInstance().vrmExt !== undefined) {
-                        app.vrmRenderer.getThreeInstance().vrmExt.blendShapeMaster.blendShapeGroups.forEach(group => {
-                            group.binds.forEach(bind => blendShapeMeshes.add(bind.mesh));
-                        });
-                    }
 
-                    const flattenedObjects = [];
-                    app.vrmRenderer.getThreeInstance().traverse(o => flattenedObjects.push(o));
-                    return flattenedObjects
-                        .filter(obj => obj.type === 'Mesh' || obj.type === 'SkinnedMesh')
-                        .map(mesh => {
-                            const numVerts = mesh.geometry.index === null ? mesh.geometry.attributes.position.count : mesh.geometry.index.count;
-                            const numTris = Math.floor(numVerts / 3);
-                            return {
-                                visibility: mesh.visible,
-                                //+ (blendShapeMeshes.has(mesh) ? "BS" : ""),
-                                name: mesh.name,
-                                shaderName: mesh.material.shaderName ? mesh.material.shaderName : "Unlit",
-                                textureUrl: (!mesh.material.map || !mesh.material.map.image) ? null : MevApplication._convertImageToDataUrlWithHeight(mesh.material.map.image, Math.min(48, mesh.material.map.image.height)),
-                                numTris: "△" + numTris,
-                            };
+                    const getTextureUrl = texId => {
+                        const imgId = this.vrmRoot.gltf.textures[texId].source;
+                        return this.vrmRoot.getImageAsDataUrl(imgId);
+                    };
+
+                    const parts = [];
+                    this.vrmRoot.gltf.meshes.forEach((mesh, meshIx) => {
+                        mesh.primitives.forEach((prim, primIx) => {
+                            const mat = this.vrmRoot.gltf.materials[prim.material];
+                            parts.push({
+                                visibility: true,
+                                // (meshIx, primIx) act as VRM-global prim id.
+                                meshIx: meshIx,
+                                primIx: primIx,
+                                name: mesh.name + ":" + primIx,
+                                shaderName: MevApplication._getShaderNameFromMaterial(this.vrmRoot, prim.material),
+                                textureUrl: mat.pbrMetallicRoughness.baseColorTexture !== undefined ? getTextureUrl(mat.pbrMetallicRoughness.baseColorTexture.index) : null,
+                                numTris: "△" + this.vrmRoot.countPrimitiveTris(prim),
+                            });
                         });
+                    });
+                    return parts;
                 },
             },
         });
@@ -464,6 +463,20 @@ class MevApplication {
         const mat = new THREE.LineBasicMaterial({ color: "red" });
         mat.depthTest = false;
         return new THREE.LineSegments(geom, mat);
+    }
+
+    static _getShaderNameFromMaterial(vrm, matIx) {
+        const mat = vrm.gltf.materials[matIx];
+        if (mat.extensions !== undefined && mat.extensions.KHR_materials_unlit !== undefined) {
+            const vrmShader = vrm.gltf.extensions.VRM.materialProperties[matIx].shader;
+            if (vrmShader === "VRM_USE_GLTFSHADER") {
+                return "Unlit*";
+            } else {
+                return vrmShader;
+            }
+        } else {
+            return "Metallic-Roughness";
+        }
     }
 
     static _convertImageToDataUrlWithHeight(img, targetHeight) {
