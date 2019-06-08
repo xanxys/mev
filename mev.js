@@ -152,7 +152,7 @@ class MevApplication {
             },
             watch: {
                 vrmRoot: function (newValue, oldValue) {
-                    if (newValue !== oldValue) {
+                    if (newValue !== oldValue || newValue.version !== oldValue.version) {
                         this._setEmotion(this.currentEmotionId);
                         this._computeAvatarHeight();
                         this._calculateFinalSizeAsync();

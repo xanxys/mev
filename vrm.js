@@ -4,7 +4,7 @@ import { deserializeGlb, serializeGlb } from './gltf.js';
 import { GLTFLoader, WEBGL_CONSTANTS } from './gltf-three.js';
 
 /**
- * Immutable representation of a single, whole .vrm data.
+ * Mutable representation of a single, whole .vrm data.
  * Guranteed to be (de-)serializable from/to a blob.
  */
 export class VrmModel {
@@ -16,6 +16,7 @@ export class VrmModel {
     constructor(gltf, buffers) {
         this.gltf = gltf;
         this.buffers = buffers;
+        this.version = 0; // mutation version
     }
 
     /**
@@ -44,8 +45,48 @@ export class VrmModel {
         });
     }
 
-    // HACK: Define proper way to specify a node.
-    // "mutation" methods. These methods will return new instance of VrmModel with requested updates.
+    ////////////////////////////////////////////////////////////////////////////////////////////////////
+    // Mutation methods.
+
+    /**
+     * Note: {buffer, byteOffset, byteLength} will be calculated automatically. Other properties won't be set /
+     * existing property (e.g. byteStride) will be discarded.
+     * 
+     * @param {number} bufferViewIx: Existing bufferView index
+     * @param {ArrayBuffer} data: new content of specified bufferView. Existing data will be thrown away.
+     */
+    setBufferViewData(bufferViewIx, data) {
+        this.gltf.bufferViews[bufferViewIx] = this.appendDataToBuffer(data, 0);
+        this.repackBuffer0AssumingNonOverlappingBufferViews();
+    }
+
+    /**
+     * @param {ArrayBuffer} data 
+     * @param {number} bufferIx: Usually specify 0. Buffer must already exist.
+     * @returns {Object} {buffer, byteOffset, byteLength}
+     */
+    appendDataToBuffer(data, bufferIx) {
+        const oldBuffer = this.buffers[bufferIx];
+        const newByteBuffer = new Uint8Array(oldBuffer.byteLength + data.byteLength);
+        newByteBuffer.set(new Uint8Array(oldBuffer), 0);
+        newByteBuffer.set(new Uint8Array(data), oldBuffer.byteLength);
+
+        this.buffers[bufferIx] = newByteBuffer.buffer;
+        this.gltf.buffers[bufferIx] = newByteBuffer.byteLength;
+        this.version++;
+        return {
+            buffer: bufferIx,
+            byteOffset: oldBuffer.byteLength,
+            byteLength: data.byteLength,
+        };
+    }
+
+    repackBuffer0AssumingNonOverlappingBufferViews() {
+        // TODO: implement
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////
+    // Accessors.
 
     countTotalTris() {
         var numTris = 0;

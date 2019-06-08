@@ -12,7 +12,8 @@ Vue.component(
 
                 const reader = new FileReader();
                 reader.addEventListener("load", () => {
-                    // TODO: set reader.result to this.vrm @ imageId
+                    const image = this.vrm.gltf.images[this.imageId];
+                    this.vrm.setBufferViewData(image.bufferView, reader.result);
                 });
                 reader.readAsArrayBuffer(imageFile);
             },
