@@ -83,6 +83,9 @@ export class VrmModel {
         };
     }
 
+    /**
+     * Copy content of every bufferViews in to buffer 0 with tight packing.
+     */
     repackBuffer() {
         const preTotalSize = this.buffers.map(buf => buf.byteLength).reduce((a, b) => a + b);
         const totalSize = this.gltf.bufferViews
