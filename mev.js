@@ -416,6 +416,9 @@ class MevApplication {
                     });
                     return parts;
                 },
+                partsForCurrentImage: function () {
+                    return this.parts.filter(part => part.imageId === this.currentImageId);
+                },
             },
         });
     }

@@ -47,7 +47,8 @@
       :blendshape-master="blendshapeMaster">
     </menu-section-emotion>
 
-    <menu-section-image v-if="showImagePane" :vrm="vrmRoot" :image-id="currentImageId" v-on:vrm-change="updateVrm">
+    <menu-section-image v-if="showImagePane" :vrm="vrmRoot" :image-id="currentImageId"
+      :image-using-parts="partsForCurrentImage" v-on:vrm-change="updateVrm">
     </menu-section-image>
 
     <section id="loading_progress" style="padding: 8px" v-if="isLoading">
@@ -141,6 +142,7 @@
         <br/>
 
         <h2>画像が使われている場所</h2>
+        <div v-for="part in imageUsingParts">{{part.name}}</div>
       </section>
     </div>
   </script>
