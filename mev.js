@@ -118,7 +118,7 @@ class MevApplication {
         this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
 
         this.renderer.setClearColor(new THREE.Color("#f5f5f5"));
-        this.scene.add(this._create_stage());
+        this.scene.add(this._createStage());
         this.scene.add(new THREE.DirectionalLight(0xffffff, 1.0));
         this.scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 0.3));
 
@@ -130,6 +130,8 @@ class MevApplication {
 
         // Overlay UI
         const app = this;
+        app.heightIndicator = new HeightIndicator(this.scene);
+
         this.vm = new Vue({
             el: '#vue_menu',
             data: {
@@ -158,7 +160,8 @@ class MevApplication {
                         this._applyEmotion();
                         this._computeAvatarHeight();
                         this._calculateFinalSizeAsync();
-                        app._createHeightIndicator(this.avatarHeight);
+                        app.heightIndicator.setHeight(this.avatarHeight);
+                        app.heightIndicator.setVisible(true);
                     }
                 },
             },
@@ -505,7 +508,7 @@ class MevApplication {
      * - normal pointing Y+ ("up" in VRM spec & me/v app)
      * - notch at Z-. ("front" in VRM spec)
      */
-    _create_stage() {
+    _createStage() {
         const stageGeom = new THREE.CircleBufferGeometry(1, 64);
         const stageMat = new THREE.MeshBasicMaterial({ color: "white" });
         const stageObj = new THREE.Mesh(stageGeom, stageMat);
@@ -519,32 +522,64 @@ class MevApplication {
         stageObj.add(notchObj);
         return stageObj;
     }
+}
 
-    _createHeightIndicator(height) {
+/// Present current avatar height in Scene.
+/// Hidden by default.
+class HeightIndicator {
+    constructor(scene) {
+        this.scene = scene;
+
+        this.visible = false;
+        this._createObjects(0);
+    }
+
+    setVisible(visible) {
+        this.visible = visible;
+
+        this.arrow.visible = visible;
+        this.sprite.visible = visible;
+    }
+
+    setHeight(height) {
+        this.scene.remove(this.arrow);
+        this.scene.remove(this.sprite);
+        this._createObjects(height);
+    }
+
+    _createObjects(height) {
         // Arrow
         {
             const geom = new THREE.Geometry();
             geom.vertices.push(new THREE.Vector3(0, height, 0));
             geom.vertices.push(new THREE.Vector3(-0.5, height, 0));
             const mat = new THREE.LineBasicMaterial({ color: "black" });
-            this.scene.add(new THREE.LineSegments(geom, mat));
+
+            this.arrow = new THREE.LineSegments(geom, mat);
+            this.arrow.visible = this.visible;
+            this.scene.add(this.arrow);
         }
 
         // Text
-        const canvas = document.createElement("canvas");
-        canvas.width = 128;
-        canvas.height = 128;
-        const ctx = canvas.getContext("2d");
-        ctx.fillColor = "black";
-        ctx.font = "32px Roboto";
-        ctx.fillText(height.toFixed(2) + "m", 0, 32);
+        {
+            const canvas = document.createElement("canvas");
+            canvas.width = 128;
+            canvas.height = 128;
+            const ctx = canvas.getContext("2d");
+            ctx.fillColor = "black";
+            ctx.font = "32px Roboto";
+            ctx.fillText(height.toFixed(2) + "m", 0, 32);
 
-        const tex = new THREE.CanvasTexture(canvas);
-        const mat = new THREE.SpriteMaterial({ map: tex });
-        const sprite = new THREE.Sprite(mat);
-        sprite.scale.set(0.25, 0.25, 0.25);
-        sprite.position.set(-0.5, height - 0.05, 0);
-        this.scene.add(sprite);
+            const tex = new THREE.CanvasTexture(canvas);
+            const mat = new THREE.SpriteMaterial({ map: tex });
+            const sprite = new THREE.Sprite(mat);
+            sprite.scale.set(0.25, 0.25, 0.25);
+            sprite.position.set(-0.5, height - 0.05, 0);
+
+            this.sprite = sprite;
+            this.sprite.visible = this.visible;
+            this.scene.add(this.sprite);
+        }
     }
 }
 
