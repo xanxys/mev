@@ -3,6 +3,8 @@ import * as vrm_mat from './vrm-materials.js';
 import { deserializeGlb, serializeGlb } from './gltf.js';
 import { GLTFLoader, WEBGL_CONSTANTS } from './gltf-three.js';
 
+import { blendshapeToEmotionId } from '../mev-util.js';
+
 /**
  * Mutable representation of a single, whole .vrm data.
  * Guranteed to be (de-)serializable from/to a blob.
@@ -144,8 +146,14 @@ export class VrmModel {
 export class VrmRenderer {
     constructor(model) {
         this.model = model;
+        this.currentEmotionId = "neutral";
+
         this.instance = null;
         this.instanceContainer = null;
+    }
+
+    setCurrentEmotionId(emotionId) {
+        this.currentEmotionId = emotionId;
     }
 
     /** Returns a singleton correponding to the model. No need to re-fetch after invalidate(). */
@@ -180,6 +188,58 @@ export class VrmRenderer {
         this.instance = null;
         this.getThreeInstanceAsync();
     }
+
+    invalidateWeight() {
+        // Reset all morph.
+        traverseMorphableMesh(this.instance, mesh => mesh.morphTargetInfluences.fill(0));
+
+        const blendshapes = this.model.gltf.extensions.VRM.blendShapeMaster.blendShapeGroups.map(bs => {
+            const binds = bs.binds.map(bind => {
+                const mesh = this.model.gltf.meshes[bind.mesh];
+                return {
+                    meshName: mesh.name,
+                    meshIndex: bind.mesh,
+                    meshRef: this.getMeshByIndex(bind.mesh),
+                    morphName: mesh.primitives[0].extras.targetNames[bind.index],
+                    morphIndex: bind.index,
+                    weight: bind.weight,
+                };
+            });
+            return {
+                id: blendshapeToEmotionId(bs),
+                weightConfigs: binds,
+            };
+        });
+
+        const blendshape = blendshapes.find(bs => bs.id === this.currentEmotionId);
+        if (!blendshape) {
+            return;
+        }
+
+        // Set new morph set to view.
+        blendshape.weightConfigs.forEach(weightConfig => {
+            traverseMorphableMesh(weightConfig.meshRef, mesh => {
+                mesh.morphTargetInfluences[weightConfig.morphIndex] = weightConfig.weight * 0.01;  // % -> actual number
+            });
+        });
+    }
+}
+
+/**
+ * Similar to root.traverse(fn), but only executes fn when object is morphable mesh.
+ * @param {THREE.Object3D} root 
+ * @param {Function<THREE.Object3D>} fn 
+ */
+function traverseMorphableMesh(root, fn) {
+    root.traverse(obj => {
+        if (obj.type !== "Mesh" && obj.type !== "SkinnedMesh") {
+            return;
+        }
+        if (!obj.morphTargetInfluences) {
+            return;
+        }
+        fn(obj);
+    });
 }
 
 /**

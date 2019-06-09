@@ -1,9 +1,9 @@
-import { traverseMorphableMesh, blendshapeToEmotionId } from '../mev-util.js';
+import { blendshapeToEmotionId } from '../mev-util.js';
 
 Vue.component(
     "menu-section-emotion", {
         template: "#menu_section_emotion",
-        props: ["emotionId", "allWeightCandidates", "weightConfigs", "blendshapeMaster"],
+        props: ["vrmRenderer", "emotionId", "allWeightCandidates", "weightConfigs", "blendshapeMaster"],
         data: function () {
             return {
                 searching: false,
@@ -13,11 +13,6 @@ Vue.component(
         methods: {
             onChangeWeight: function (event, weightConfig) {
                 const newWeight = event.srcElement.valueAsNumber * 0.01;
-
-                // TODO: do this via VrmRenderer
-                traverseMorphableMesh(weightConfig.meshRef, mesh => {
-                    mesh.morphTargetInfluences[weightConfig.morphIndex] = newWeight;
-                });
                 this.blendshapeMaster.blendShapeGroups.forEach(bs => {
                     if (blendshapeToEmotionId(bs) !== this.emotionId) {
                         return;
@@ -28,6 +23,7 @@ Vue.component(
                         }
                     });
                 });
+                this.vrmRenderer.invalidateWeight();
             },
             clickAddWeight: function () {
                 this.searching = true;
@@ -38,9 +34,6 @@ Vue.component(
             },
             addWeight: function (weightCandidate) {
                 const newWeight = 1.0;
-                traverseMorphableMesh(weightCandidate.mesh, mesh => {
-                    mesh.morphTargetInfluences[weightCandidate.morphIndex] = newWeight;
-                });
                 this.blendshapeMaster.blendShapeGroups.forEach(bs => {
                     if (blendshapeToEmotionId(bs) !== this.emotionId) {
                         return;
@@ -51,6 +44,7 @@ Vue.component(
                         mesh: weightCandidate.meshIndex,
                     });
                 });
+                this.vrmRenderer.invalidateWeight();
             },
         },
         computed: {

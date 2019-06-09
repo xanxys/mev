@@ -3,7 +3,7 @@ import { VrmModel, VrmRenderer } from './vrm.js';
 import { setupStartDialog } from './components/start-dialog.js';
 import { } from './components/menu-section-emotion.js';
 import { } from './components/menu-section-image.js';
-import { traverseMorphableMesh, flatten, objectToTreeDebug, blendshapeToEmotionId } from './mev-util.js';
+import { flatten, objectToTreeDebug, blendshapeToEmotionId } from './mev-util.js';
 
 const EMOTION_PRESET_GROUPING = [
     ["neutral"],
@@ -141,7 +141,7 @@ class MevApplication {
                 currentPane: PANE_MODE.DEFAULT,
                 isFatalError: false,
 
-                // Main Pane
+                // PANE_MODE.DEFAULT
                 avatarName: "",
                 avatarHeight: "",
                 currentEmotionId: "neutral",  // shared with PANE_MODE.EMOTION
@@ -182,23 +182,9 @@ class MevApplication {
                     this.currentImageId = imageId;
                     this.currentPane = PANE_MODE.IMAGE;
                 },
-                // TODO: Do these via vrmRenderer
                 _setEmotion(emotionId) {
-                    const blendshape = this.blendshapes.find(bs => bs.id === emotionId);
-
-                    // Reset all morph.
-                    traverseMorphableMesh(app.vrmRenderer.getThreeInstance(), mesh => mesh.morphTargetInfluences.fill(0));
-
-                    if (!blendshape) {
-                        return;
-                    }
-
-                    // Set new morph set to view.
-                    blendshape.weightConfigs.forEach(weightConfig => {
-                        traverseMorphableMesh(weightConfig.meshRef, mesh => {
-                            mesh.morphTargetInfluences[weightConfig.morphIndex] = weightConfig.weight * 0.01;  // % -> actual number
-                        });
-                    });
+                    app.vrmRenderer.setCurrentEmotionId(emotionId);
+                    app.vrmRenderer.invalidateWeight();
                 },
                 _calculateFinalSizeAsync: function () {
                     this.vrmRoot.serialize().then(buffer => {
@@ -300,7 +286,6 @@ class MevApplication {
                     this.vrmRoot.version;
 
                     return this.vrmRoot.gltf.extensions.VRM.blendShapeMaster.blendShapeGroups.map(bs => {
-
                         const binds = bs.binds.map(bind => {
                             const mesh = this.vrmRoot.gltf.meshes[bind.mesh];
                             return {
@@ -418,6 +403,9 @@ class MevApplication {
                 },
                 partsForCurrentImage: function () {
                     return this.parts.filter(part => part.imageId === this.currentImageId);
+                },
+                vrmRenderer: function () {
+                    return app.vrmRenderer;
                 },
             },
         });

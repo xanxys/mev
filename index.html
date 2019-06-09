@@ -42,7 +42,9 @@
       <h1 style="display:inline-block">{{toolbarTitle}}</h1>
     </section>
 
-    <menu-section-emotion v-if="showEmotionPane" :emotion-id="currentEmotionId"
+    <menu-section-emotion v-if="showEmotionPane"
+      :vrm-renderer="vrmRenderer"
+      :emotion-id="currentEmotionId"
       :all-weight-candidates="allWeightCandidates" :weight-configs="currentWeightConfigs"
       :blendshape-master="blendshapeMaster">
     </menu-section-emotion>
