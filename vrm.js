@@ -3,7 +3,7 @@ import * as vrm_mat from './vrm-materials.js';
 import { deserializeGlb, serializeGlb } from './gltf.js';
 import { GLTFLoader, WEBGL_CONSTANTS } from './gltf-three.js';
 
-import { blendshapeToEmotionId } from '../mev-util.js';
+import { blendshapeToEmotionId } from './mev-util.js';
 
 /**
  * Mutable representation of a single, whole .vrm data.
