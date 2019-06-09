@@ -836,7 +836,7 @@ GLTFCubicSplineInterpolant.prototype.interpolate_ = function (i1, t0, t, t1) {
 
 /* CONSTANTS */
 
-var WEBGL_CONSTANTS = {
+export const WEBGL_CONSTANTS = {
 	FLOAT: 5126,
 	//FLOAT_MAT2: 35674,
 	FLOAT_MAT3: 35675,

@@ -1,10 +1,12 @@
 // ES6
 import * as vrm_mat from './vrm-materials.js';
 import { deserializeGlb, serializeGlb } from './gltf.js';
-import { GLTFLoader } from './gltf-three.js';
+import { GLTFLoader, WEBGL_CONSTANTS } from './gltf-three.js';
+
+import { blendshapeToEmotionId } from '../mev-util.js';
 
 /**
- * Immutable representation of a single, whole .vrm data.
+ * Mutable representation of a single, whole .vrm data.
  * Guranteed to be (de-)serializable from/to a blob.
  */
 export class VrmModel {
@@ -16,6 +18,7 @@ export class VrmModel {
     constructor(gltf, buffers) {
         this.gltf = gltf;
         this.buffers = buffers;
+        this.version = 0; // mutation version
     }
 
     /**
@@ -44,11 +47,121 @@ export class VrmModel {
         });
     }
 
-    // HACK: Define proper way to specify a node.
-    // "mutation" methods. These methods will return new instance of VrmModel with requested updates.
+    ////////////////////////////////////////////////////////////////////////////////////////////////////
+    // Mutation methods.
 
-    countTris() {
-        return 0;
+    /**
+     * Note: {buffer, byteOffset, byteLength} will be calculated automatically. Other properties won't be set /
+     * existing property (e.g. byteStride) will be discarded.
+     * 
+     * @param {number} bufferViewIx: Existing bufferView index
+     * @param {ArrayBuffer} data: new content of specified bufferView. Existing data will be thrown away.
+     */
+    setBufferViewData(bufferViewIx, data) {
+        this.gltf.bufferViews[bufferViewIx] = this.appendDataToBuffer(data, 0);
+        this.repackBuffer();
+    }
+
+    /**
+     * @param {ArrayBuffer} data 
+     * @param {number} bufferIx: Usually specify 0. Buffer must already exist.
+     * @returns {Object} {buffer, byteOffset, byteLength}
+     */
+    appendDataToBuffer(data, bufferIx) {
+        const oldBuffer = this.buffers[bufferIx];
+        const newByteBuffer = new Uint8Array(oldBuffer.byteLength + data.byteLength);
+        newByteBuffer.set(new Uint8Array(oldBuffer), 0);
+        newByteBuffer.set(new Uint8Array(data), oldBuffer.byteLength);
+
+        this.buffers[bufferIx] = newByteBuffer.buffer;
+        this.gltf.buffers[bufferIx] = newByteBuffer.byteLength;
+        this.version++;
+        return {
+            buffer: bufferIx,
+            byteOffset: oldBuffer.byteLength,
+            byteLength: data.byteLength,
+        };
+    }
+
+    /**
+     * Copy content of every bufferViews in to buffer 0 with tight packing.
+     */
+    repackBuffer() {
+        const preTotalSize = this.buffers.map(buf => buf.byteLength).reduce((a, b) => a + b);
+        const totalSize = this.gltf.bufferViews
+            .map(bv => bv.byteLength).reduce((a, b) => a + b);
+
+        const newBuffer = new Uint8Array(totalSize);
+        let offset = 0;
+        const newBufferViews = this.gltf.bufferViews.map(bv => {
+            const data = new Uint8Array(this.buffers[bv.buffer].slice(bv.byteOffset, bv.byteOffset + bv.byteLength));
+            newBuffer.set(data, offset);
+
+            const newBv = Object.assign({}, bv);
+            newBv.buffer = 0;
+            newBv.byteOffset = offset;
+            newBv.byteLength = data.byteLength;
+
+            offset += data.byteLength;
+            return newBv;
+        });
+
+        this.buffers = [newBuffer.buffer];
+        this.gltf.bufferViews = newBufferViews;
+        this.version++;
+
+        console.log("repack", preTotalSize, "->", totalSize);
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////
+    // Accessors.
+
+    countTotalTris() {
+        var numTris = 0;
+        this.gltf.meshes.forEach(mesh => {
+            mesh.primitives.forEach(prim => {
+                numTris += this.countPrimitiveTris(prim);
+            });
+        });
+        return numTris;
+    }
+
+    countPrimitiveTris(primitive) {
+        if (primitive.mode === WEBGL_CONSTANTS.TRIANGLES) {
+            const accessor = this.gltf.accessors[primitive.indices];
+            return accessor.count / 3;
+        }
+        throw "Couldn't count tris";
+    }
+
+    /**
+     * @param {number} imageId 
+     * @returns {ArrayBuffer}
+     */
+    getImageAsBuffer(imageId) {
+        const img = this.gltf.images[imageId];
+        return this._getBufferView(img.bufferView);
+    }
+
+    getImageAsDataUrl(imageId) {
+        const img = this.gltf.images[imageId];
+        const data = this._getBufferView(img.bufferView);
+
+        const byteBuffer = new Uint8Array(data);
+        var asciiBuffer = "";
+        for (var i = 0; i < data.byteLength; i++) {
+            asciiBuffer += String.fromCharCode(byteBuffer[i]);
+        }
+        return "data:img/png;base64," + window.btoa(asciiBuffer);
+    }
+
+    /**
+     * @param {number} bufferViewOx: glTF bufferView index
+     * @returns {ArrayBuffer}: immutable blob slice
+     */
+    _getBufferView(bufferViewIx) {
+        const bufferView = this.gltf.bufferViews[bufferViewIx];
+        return this.buffers[bufferView.buffer].slice(bufferView.byteOffset, bufferView.byteOffset + bufferView.byteLength);
     }
 }
 
@@ -59,7 +172,14 @@ export class VrmModel {
 export class VrmRenderer {
     constructor(model) {
         this.model = model;
+        this.currentEmotionId = "neutral";
+
         this.instance = null;
+        this.instanceContainer = null;
+    }
+
+    setCurrentEmotionId(emotionId) {
+        this.currentEmotionId = emotionId;
     }
 
     /** Returns a singleton correponding to the model. No need to re-fetch after invalidate(). */
@@ -75,8 +195,12 @@ export class VrmRenderer {
         const gltfLoader = new GLTFLoader();
         return gltfLoader.parse(this.model.gltf, this.model.buffers[0]).then(parseVrm).then(instance => {
             this.instance = instance;
+            if (this.instanceContainer !== null) {
+                console.log("Re-inserting three instance");
+                this.instanceContainer.add(instance);
+            }
             return instance;
-        })
+        });
     }
 
     getMeshByIndex(meshIndex) {
@@ -84,8 +208,46 @@ export class VrmRenderer {
     }
 
     /** Notifies that underlying model was updated, and instance needs to change. */
-    invalidate(newModel) {
+    invalidate() {
+        this.instanceContainer = this.instance.parent;
+        this.instanceContainer.remove(this.instance);
+        this.instance = null;
+        this.getThreeInstanceAsync();
     }
+
+    invalidateWeight() {
+        // Reset all morph.
+        traverseMorphableMesh(this.instance, mesh => mesh.morphTargetInfluences.fill(0));
+
+        const currentBlendshape = this.model.gltf.extensions.VRM.blendShapeMaster.blendShapeGroups
+            .find(bs => blendshapeToEmotionId(bs) === this.currentEmotionId);
+        if (currentBlendshape === undefined) {
+            return;
+        }
+
+        currentBlendshape.binds.forEach(bind => {
+            traverseMorphableMesh(this.getMeshByIndex(bind.mesh), mesh => {
+                mesh.morphTargetInfluences[bind.index] = bind.weight * 0.01;  // % -> actual number
+            });
+        });
+    }
+}
+
+/**
+ * Similar to root.traverse(fn), but only executes fn when object is morphable mesh.
+ * @param {THREE.Object3D} root 
+ * @param {Function<THREE.Object3D>} fn 
+ */
+function traverseMorphableMesh(root, fn) {
+    root.traverse(obj => {
+        if (obj.type !== "Mesh" && obj.type !== "SkinnedMesh") {
+            return;
+        }
+        if (!obj.morphTargetInfluences) {
+            return;
+        }
+        fn(obj);
+    });
 }
 
 /**

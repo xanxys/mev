@@ -1,22 +1,4 @@
 
-
-/**
- * Similar to root.traverse(fn), but only executes fn when object is morphable mesh.
- * @param {THREE.Object3D} root 
- * @param {Function<THREE.Object3D>} fn 
- */
-export function traverseMorphableMesh(root, fn) {
-    root.traverse(obj => {
-        if (obj.type !== "Mesh" && obj.type !== "SkinnedMesh") {
-            return;
-        }
-        if (!obj.morphTargetInfluences) {
-            return;
-        }
-        fn(obj);
-    });
-}
-
 /**
  * Converts {THREE.Object3D} into human-readable object tree multi-line string.
  */

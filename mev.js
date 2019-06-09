@@ -2,7 +2,8 @@
 import { VrmModel, VrmRenderer } from './vrm.js';
 import { setupStartDialog } from './components/start-dialog.js';
 import { } from './components/menu-section-emotion.js';
-import { traverseMorphableMesh, flatten, objectToTreeDebug, blendshapeToEmotionId } from './mev-util.js';
+import { } from './components/menu-section-image.js';
+import { flatten, objectToTreeDebug, blendshapeToEmotionId } from './mev-util.js';
 
 const EMOTION_PRESET_GROUPING = [
     ["neutral"],
@@ -74,6 +75,12 @@ function importFbxAsVrm(fileContent) {
     });
 }
 
+const PANE_MODE = {
+    DEFAULT: 0,
+    EMOTION: 1,
+    IMAGE: 2,
+};
+
 /**
  * Handle main editor UI & all state. Start dialog is NOT part of this class.
  * 
@@ -111,7 +118,7 @@ class MevApplication {
         this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
 
         this.renderer.setClearColor(new THREE.Color("#f5f5f5"));
-        this.scene.add(this._create_stage());
+        this.scene.add(this._createStage());
         this.scene.add(new THREE.DirectionalLight(0xffffff, 1.0));
         this.scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 0.3));
 
@@ -123,59 +130,64 @@ class MevApplication {
 
         // Overlay UI
         const app = this;
+        app.heightIndicator = new HeightIndicator(this.scene);
+
         this.vm = new Vue({
             el: '#vue_menu',
             data: {
                 // Global
                 startedLoading: false,
                 vrmRoot: null, // VrmModel
-                showEmotionPane: false,
+
+                // UI mode
+                currentPane: PANE_MODE.DEFAULT,
                 isFatalError: false,
 
-                // Main Pane
+                // PANE_MODE.DEFAULT
                 avatarName: "",
                 avatarHeight: "",
-                currentEmotionId: "neutral",
+                currentEmotionId: "neutral",  // shared with PANE_MODE.EMOTION
                 finalVrmSizeApprox: "",
+
+                // PANE_MODE.IMAGE
+                currentImageId: -1,
             },
             watch: {
                 vrmRoot: function (newValue, oldValue) {
-                    if (newValue !== oldValue) {
-                        this._setEmotion(this.currentEmotionId);
+                    console.log("vrmRoot.watch");
+                    if (newValue !== oldValue || newValue.version !== oldValue.version) {
+                        console.log("Updating vrmRoot");
+                        this._applyEmotion();
                         this._computeAvatarHeight();
                         this._calculateFinalSizeAsync();
-                        app._createHeightIndicator(this.avatarHeight);
+                        app.heightIndicator.setHeight(this.avatarHeight);
+                        app.heightIndicator.setVisible(true);
                     }
                 },
             },
             methods: {
+                updateVrm: function (newVrm) {
+                    this.vrmRoot = newVrm;
+                    app.vrmRenderer.invalidate();
+                },
                 refreshPage: function () {
                     location.reload();
                 },
                 clickEmotion: function (emotionId) {
                     if (this.currentEmotionId === emotionId) {
-                        this.showEmotionPane = true;
+                        this.currentPane = PANE_MODE.EMOTION;
                     } else {
                         this.currentEmotionId = emotionId;
-                        this._setEmotion(emotionId);
+                        this._applyEmotion();
                     }
                 },
-                _setEmotion(emotionId) {
-                    const blendshape = this.blendshapes.find(bs => bs.id === emotionId);
-
-                    // Reset all morph.
-                    traverseMorphableMesh(app.vrmRenderer.getThreeInstance(), mesh => mesh.morphTargetInfluences.fill(0));
-
-                    if (!blendshape) {
-                        return;
-                    }
-
-                    // Set new morph set to view.
-                    blendshape.weightConfigs.forEach(weightConfig => {
-                        traverseMorphableMesh(weightConfig.meshRef, mesh => {
-                            mesh.morphTargetInfluences[weightConfig.morphIndex] = weightConfig.weight * 0.01;  // % -> actual number
-                        });
-                    });
+                clickImage: function (imageId) {
+                    this.currentImageId = imageId;
+                    this.currentPane = PANE_MODE.IMAGE;
+                },
+                _applyEmotion() {
+                    app.vrmRenderer.setCurrentEmotionId(this.currentEmotionId);
+                    app.vrmRenderer.invalidateWeight();
                 },
                 _calculateFinalSizeAsync: function () {
                     this.vrmRoot.serialize().then(buffer => {
@@ -189,22 +201,8 @@ class MevApplication {
                         saveAs(new Blob([buffer], { type: "application/octet-stream" }), "test.vrm");
                     });
                 },
-                toggleVisible: function (partName) {
-                    // TODO: Need to retain visibility of all mesh, and then supply that to VrmRenderer.
-                    // TODO: Think whether we should use flattened objects everywhere or retain tree.
-                    const flattenedObjects = [];
-
-                    const instance = app.vrmRenderer.getThreeInstance();
-                    instance.traverse(o => flattenedObjects.push(o));
-                    flattenedObjects.filter(obj => obj.type === 'Mesh' || obj.type === 'SkinnedMesh')
-                        .forEach(mesh => {
-                            if (mesh.name === partName) {
-                                mesh.visible = !mesh.visible;
-                            }
-                        });
-                },
                 clickBackButton: function () {
-                    this.showEmotionPane = false;
+                    this.currentPane = PANE_MODE.DEFAULT;
                 },
                 _computeAvatarHeight: function () {
                     // For some reason, according to profiler,
@@ -220,19 +218,31 @@ class MevApplication {
             computed: {
                 // Toolbar & global pane state.
                 toolbarTitle: function () {
-                    if (this.showEmotionPane) {
-                        const nameToBlendshape = new Map(this.blendshapes.map(bs => [bs.id, bs]));
-                        const blendshape = nameToBlendshape.get(this.currentEmotionId);
-                        return "表情:" + blendshape.label;
-                    } else {
-                        return this.avatarName;
+                    switch (this.currentPane) {
+                        case PANE_MODE.DEFAULT:
+                            return this.avatarName;
+                        case PANE_MODE.EMOTION:
+                            const nameToBlendshape = new Map(this.blendshapes.map(bs => [bs.id, bs]));
+                            const blendshape = nameToBlendshape.get(this.currentEmotionId);
+                            return "表情:" + blendshape.label;
+                        case PANE_MODE.IMAGE:
+                            return "画像: " + this.vrmRoot.gltf.images[this.currentImageId].name;
+                        default:
+                            console.error("Unknown UI mode: ", this.currentPane);
+                            return "";
                     }
                 },
                 showBackButton: function () {
-                    return this.showEmotionPane;
+                    return this.currentPane !== PANE_MODE.DEFAULT;
                 },
                 showMainPane: function () {
-                    return !this.showEmotionPane && this.vrmRoot !== null;
+                    return this.currentPane === PANE_MODE.DEFAULT && this.vrmRoot !== null;
+                },
+                showEmotionPane: function () {
+                    return this.currentPane === PANE_MODE.EMOTION;
+                },
+                showImagePane: function () {
+                    return this.currentPane === PANE_MODE.IMAGE;
                 },
                 isLoading: function () {
                     return this.startedLoading && (this.vrmRoot === null && !this.isFatalError);
@@ -243,18 +253,7 @@ class MevApplication {
                     if (this.vrmRoot === null) {
                         return "";
                     }
-                    // TODO: Ideally, this is calculatable without Renderer.
-                    const stats = { numTris: 0 };
-                    app.vrmRenderer.getThreeInstance().traverse(obj => {
-                        if (obj.type === 'Mesh' || obj.type === 'SkinnedMesh') {
-                            const numVerts = obj.geometry.index === null ? obj.geometry.attributes.position.count : obj.geometry.index.count;
-                            if (numVerts % 3 != 0) {
-                                console.warn("Unexpected GeometryBuffer format. Seems to contain non-triangles");
-                            }
-                            stats.numTris += Math.floor(numVerts / 3);
-                        }
-                    });
-                    return "△" + stats.numTris;
+                    return "△" + this.vrmRoot.countTotalTris();
                 },
                 allWeightCandidates: function () {
                     var candidates = [];
@@ -287,14 +286,14 @@ class MevApplication {
                     if (this.vrmRoot === null) {
                         return [];
                     }
-                    return this.vrmRoot.gltf.extensions.VRM.blendShapeMaster.blendShapeGroups.map(bs => {
+                    this.vrmRoot.version;
 
+                    return this.vrmRoot.gltf.extensions.VRM.blendShapeMaster.blendShapeGroups.map(bs => {
                         const binds = bs.binds.map(bind => {
                             const mesh = this.vrmRoot.gltf.meshes[bind.mesh];
                             return {
                                 meshName: mesh.name,
                                 meshIndex: bind.mesh,
-                                meshRef: app.vrmRenderer.getMeshByIndex(bind.mesh),
                                 morphName: mesh.primitives[0].extras.targetNames[bind.index],
                                 morphIndex: bind.index,
                                 weight: bind.weight,
@@ -362,33 +361,52 @@ class MevApplication {
                     const blendshape = nameToBlendshape.get(this.currentEmotionId);
                     return blendshape ? blendshape.weightConfigs : [];
                 },
+                springs: function () {
+                    if (this.vrmRoot === null) {
+                        return [];
+                    }
+                    const secAnim = this.vrmRoot.gltf.extensions.VRM.secondaryAnimation;
+                    return (secAnim.boneGroups.concat(secAnim.colliderGroups)).map(g => JSON.stringify(g));
+                },
                 parts: function () {
                     if (this.vrmRoot === null) {
                         return [];
                     }
-                    const blendShapeMeshes = new Set();
-                    if (app.vrmRenderer.getThreeInstance().vrmExt !== undefined) {
-                        app.vrmRenderer.getThreeInstance().vrmExt.blendShapeMaster.blendShapeGroups.forEach(group => {
-                            group.binds.forEach(bind => blendShapeMeshes.add(bind.mesh));
-                        });
-                    }
+                    this.vrmRoot.version; // force depend
 
-                    const flattenedObjects = [];
-                    app.vrmRenderer.getThreeInstance().traverse(o => flattenedObjects.push(o));
-                    return flattenedObjects
-                        .filter(obj => obj.type === 'Mesh' || obj.type === 'SkinnedMesh')
-                        .map(mesh => {
-                            const numVerts = mesh.geometry.index === null ? mesh.geometry.attributes.position.count : mesh.geometry.index.count;
-                            const numTris = Math.floor(numVerts / 3);
-                            return {
-                                visibility: mesh.visible,
-                                //+ (blendShapeMeshes.has(mesh) ? "BS" : ""),
-                                name: mesh.name,
-                                shaderName: mesh.material.shaderName ? mesh.material.shaderName : "Unlit",
-                                textureUrl: (!mesh.material.map || !mesh.material.map.image) ? null : MevApplication._convertImageToDataUrlWithHeight(mesh.material.map.image, Math.min(48, mesh.material.map.image.height)),
-                                numTris: "△" + numTris,
+                    const parts = [];
+                    this.vrmRoot.gltf.meshes.forEach((mesh, meshIx) => {
+                        mesh.primitives.forEach((prim, primIx) => {
+                            const mat = this.vrmRoot.gltf.materials[prim.material];
+                            const part = {
+                                visibility: true,
+                                // (meshIx, primIx) act as VRM-global prim id.
+                                meshIx: meshIx,
+                                primIx: primIx,
+                                name: mesh.name + ":" + primIx,
+                                shaderName: MevApplication._getShaderNameFromMaterial(this.vrmRoot, prim.material),
+                                imageId: -1,
+                                textureUrl: null,
+                                numTris: "△" + this.vrmRoot.countPrimitiveTris(prim),
                             };
+
+                            if (mat.pbrMetallicRoughness.baseColorTexture !== undefined) {
+                                const texId = mat.pbrMetallicRoughness.baseColorTexture.index;
+                                const imageId = this.vrmRoot.gltf.textures[texId].source;
+                                part.imageId = imageId;
+                                part.textureUrl = this.vrmRoot.getImageAsDataUrl(imageId);
+                            }
+
+                            parts.push(part);
                         });
+                    });
+                    return parts;
+                },
+                partsForCurrentImage: function () {
+                    return this.parts.filter(part => part.imageId === this.currentImageId);
+                },
+                vrmRenderer: function () {
+                    return app.vrmRenderer;
                 },
             },
         });
@@ -425,11 +443,10 @@ class MevApplication {
                 VrmModel.deserialize(reader.result).then(vrmModel => {
                     app.vrmRenderer = new VrmRenderer(vrmModel);  // Non-Vue binder of vrmModel.
                     app.vrmRenderer.getThreeInstanceAsync().then(instance => {
-                        console.log("gTIA", instance);
                         this.scene.add(instance);
                         // Ideally, this shouldn't need to wait for instance.
                         // But current MevApplication VM depends A LOT on Three instance...
-                        app.vm.vrmRoot = vrmModel;  // Vue binder of vrmModel.
+                        app.vm.vrmRoot = vrmModel; // Vue binder of vrmModel.
                     });
                 });
             });
@@ -460,6 +477,20 @@ class MevApplication {
         return new THREE.LineSegments(geom, mat);
     }
 
+    static _getShaderNameFromMaterial(vrm, matIx) {
+        const mat = vrm.gltf.materials[matIx];
+        if (mat.extensions !== undefined && mat.extensions.KHR_materials_unlit !== undefined) {
+            const vrmShader = vrm.gltf.extensions.VRM.materialProperties[matIx].shader;
+            if (vrmShader === "VRM_USE_GLTFSHADER") {
+                return "Unlit*";
+            } else {
+                return vrmShader;
+            }
+        } else {
+            return "Metallic-Roughness";
+        }
+    }
+
     static _convertImageToDataUrlWithHeight(img, targetHeight) {
         const scaling = targetHeight / img.height;
         const targetWidth = Math.floor(img.width * scaling);
@@ -477,7 +508,7 @@ class MevApplication {
      * - normal pointing Y+ ("up" in VRM spec & me/v app)
      * - notch at Z-. ("front" in VRM spec)
      */
-    _create_stage() {
+    _createStage() {
         const stageGeom = new THREE.CircleBufferGeometry(1, 64);
         const stageMat = new THREE.MeshBasicMaterial({ color: "white" });
         const stageObj = new THREE.Mesh(stageGeom, stageMat);
@@ -491,32 +522,64 @@ class MevApplication {
         stageObj.add(notchObj);
         return stageObj;
     }
+}
 
-    _createHeightIndicator(height) {
+/// Present current avatar height in Scene.
+/// Hidden by default.
+class HeightIndicator {
+    constructor(scene) {
+        this.scene = scene;
+
+        this.visible = false;
+        this._createObjects(0);
+    }
+
+    setVisible(visible) {
+        this.visible = visible;
+
+        this.arrow.visible = visible;
+        this.sprite.visible = visible;
+    }
+
+    setHeight(height) {
+        this.scene.remove(this.arrow);
+        this.scene.remove(this.sprite);
+        this._createObjects(height);
+    }
+
+    _createObjects(height) {
         // Arrow
         {
             const geom = new THREE.Geometry();
             geom.vertices.push(new THREE.Vector3(0, height, 0));
             geom.vertices.push(new THREE.Vector3(-0.5, height, 0));
             const mat = new THREE.LineBasicMaterial({ color: "black" });
-            this.scene.add(new THREE.LineSegments(geom, mat));
+
+            this.arrow = new THREE.LineSegments(geom, mat);
+            this.arrow.visible = this.visible;
+            this.scene.add(this.arrow);
         }
 
         // Text
-        const canvas = document.createElement("canvas");
-        canvas.width = 128;
-        canvas.height = 128;
-        const ctx = canvas.getContext("2d");
-        ctx.fillColor = "black";
-        ctx.font = "32px Roboto";
-        ctx.fillText(height.toFixed(2) + "m", 0, 32);
+        {
+            const canvas = document.createElement("canvas");
+            canvas.width = 128;
+            canvas.height = 128;
+            const ctx = canvas.getContext("2d");
+            ctx.fillColor = "black";
+            ctx.font = "32px Roboto";
+            ctx.fillText(height.toFixed(2) + "m", 0, 32);
 
-        const tex = new THREE.CanvasTexture(canvas);
-        const mat = new THREE.SpriteMaterial({ map: tex });
-        const sprite = new THREE.Sprite(mat);
-        sprite.scale.set(0.25, 0.25, 0.25);
-        sprite.position.set(-0.5, height - 0.05, 0);
-        this.scene.add(sprite);
+            const tex = new THREE.CanvasTexture(canvas);
+            const mat = new THREE.SpriteMaterial({ map: tex });
+            const sprite = new THREE.Sprite(mat);
+            sprite.scale.set(0.25, 0.25, 0.25);
+            sprite.position.set(-0.5, height - 0.05, 0);
+
+            this.sprite = sprite;
+            this.sprite.visible = this.visible;
+            this.scene.add(this.sprite);
+        }
     }
 }
 
