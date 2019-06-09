@@ -155,7 +155,7 @@ class MevApplication {
                     console.log("vrmRoot.watch");
                     if (newValue !== oldValue || newValue.version !== oldValue.version) {
                         console.log("Updating vrmRoot");
-                        this._setEmotion(this.currentEmotionId);
+                        this._applyEmotion();
                         this._computeAvatarHeight();
                         this._calculateFinalSizeAsync();
                         app._createHeightIndicator(this.avatarHeight);
@@ -175,15 +175,15 @@ class MevApplication {
                         this.currentPane = PANE_MODE.EMOTION;
                     } else {
                         this.currentEmotionId = emotionId;
-                        this._setEmotion(emotionId);
+                        this._applyEmotion();
                     }
                 },
                 clickImage: function (imageId) {
                     this.currentImageId = imageId;
                     this.currentPane = PANE_MODE.IMAGE;
                 },
-                _setEmotion(emotionId) {
-                    app.vrmRenderer.setCurrentEmotionId(emotionId);
+                _applyEmotion() {
+                    app.vrmRenderer.setCurrentEmotionId(this.currentEmotionId);
                     app.vrmRenderer.invalidateWeight();
                 },
                 _calculateFinalSizeAsync: function () {
@@ -291,8 +291,6 @@ class MevApplication {
                             return {
                                 meshName: mesh.name,
                                 meshIndex: bind.mesh,
-                                // TODO: Remove this
-                                meshRef: app.vrmRenderer.getMeshByIndex(bind.mesh),
                                 morphName: mesh.primitives[0].extras.targetNames[bind.index],
                                 morphIndex: bind.index,
                                 weight: bind.weight,

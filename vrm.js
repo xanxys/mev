@@ -193,33 +193,15 @@ export class VrmRenderer {
         // Reset all morph.
         traverseMorphableMesh(this.instance, mesh => mesh.morphTargetInfluences.fill(0));
 
-        const blendshapes = this.model.gltf.extensions.VRM.blendShapeMaster.blendShapeGroups.map(bs => {
-            const binds = bs.binds.map(bind => {
-                const mesh = this.model.gltf.meshes[bind.mesh];
-                return {
-                    meshName: mesh.name,
-                    meshIndex: bind.mesh,
-                    meshRef: this.getMeshByIndex(bind.mesh),
-                    morphName: mesh.primitives[0].extras.targetNames[bind.index],
-                    morphIndex: bind.index,
-                    weight: bind.weight,
-                };
-            });
-            return {
-                id: blendshapeToEmotionId(bs),
-                weightConfigs: binds,
-            };
-        });
-
-        const blendshape = blendshapes.find(bs => bs.id === this.currentEmotionId);
-        if (!blendshape) {
+        const currentBlendshape = this.model.gltf.extensions.VRM.blendShapeMaster.blendShapeGroups
+            .find(bs => blendshapeToEmotionId(bs) === this.currentEmotionId);
+        if (currentBlendshape === undefined) {
             return;
         }
 
-        // Set new morph set to view.
-        blendshape.weightConfigs.forEach(weightConfig => {
-            traverseMorphableMesh(weightConfig.meshRef, mesh => {
-                mesh.morphTargetInfluences[weightConfig.morphIndex] = weightConfig.weight * 0.01;  // % -> actual number
+        currentBlendshape.binds.forEach(bind => {
+            traverseMorphableMesh(this.getMeshByIndex(bind.mesh), mesh => {
+                mesh.morphTargetInfluences[bind.index] = bind.weight * 0.01;  // % -> actual number
             });
         });
     }
