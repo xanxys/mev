@@ -59,7 +59,7 @@ export class VrmModel {
      */
     setBufferViewData(bufferViewIx, data) {
         this.gltf.bufferViews[bufferViewIx] = this.appendDataToBuffer(data, 0);
-        this.repackBuffer0AssumingNonOverlappingBufferViews();
+        this.repackBuffer();
     }
 
     /**
@@ -83,8 +83,31 @@ export class VrmModel {
         };
     }
 
-    repackBuffer0AssumingNonOverlappingBufferViews() {
-        // TODO: implement
+    repackBuffer() {
+        const preTotalSize = this.buffers.map(buf => buf.byteLength).reduce((a, b) => a + b);
+        const totalSize = this.gltf.bufferViews
+            .map(bv => bv.byteLength).reduce((a, b) => a + b);
+
+        const newBuffer = new Uint8Array(totalSize);
+        let offset = 0;
+        const newBufferViews = this.gltf.bufferViews.map(bv => {
+            const data = new Uint8Array(this.buffers[bv.buffer].slice(bv.byteOffset, bv.byteOffset + bv.byteLength));
+            newBuffer.set(data, offset);
+
+            const newBv = Object.assign({}, bv);
+            newBv.buffer = 0;
+            newBv.byteOffset = offset;
+            newBv.byteLength = data.byteLength;
+
+            offset += data.byteLength;
+            return newBv;
+        });
+
+        this.buffers = [newBuffer.buffer];
+        this.gltf.bufferViews = newBufferViews;
+        this.version++;
+
+        console.log("repack", preTotalSize, "->", totalSize);
     }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////////
