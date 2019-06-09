@@ -8,7 +8,9 @@
 
 1. VRM component (bone) editing
 
-2. VRM material editing (simple things: hue shift / resize / download / upload)
+2.a. VRM material (-> Set new material with Unlit)
+
+2.b. VRM simple material config (base tex color param)
 
 3. FBX importing
 
