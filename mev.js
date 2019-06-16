@@ -435,7 +435,7 @@ class MevApplication {
         if (this.motionFrameIndex === 100 && this.motionFrames.length > 0) {
             console.log("Motion frame example:", currentMotion);
         }
-        this.motionFrameIndex += 2;
+        this.motionFrameIndex += 1;
 
         // TODO: apply
         if (this.vm.vrmRoot && this.vrmRenderer) {
@@ -443,7 +443,7 @@ class MevApplication {
 
             // Motion data -> VRM humanoid bone name
             const lrMapping = new Map([
-                ["clavicle", "Shoulder"],
+                ["clavicle", "Shoulder"], // almost 0
                 ["humerus", "UpperArm"],
                 ["radius", "LowerArm"],
                 ["wrist", "Hand"],
@@ -457,10 +457,8 @@ class MevApplication {
             const mapping = new Map([
                 ["root", "hips"],
                 ["thorax", "chest"],
-                ["lowerback", "spine"],
-                ["lowerneck", "neck"],
+                ["lowerneck", "neck"], // upperneck??
                 ["head", "head"],
-                // ["upperneck", ],
             ]);
             lrMapping.forEach((vrmName, motionName) => {
                 mapping.set("l" + motionName, "left" + vrmName);
@@ -471,10 +469,11 @@ class MevApplication {
                 new Map(this.vm.vrmRoot.gltf.extensions.VRM.humanoid.humanBones.map(bone => [bone.bone, bone.node]));
         
 
+            // Coordinate Systems:
+            // VRM/three: 
+            // ASF/AMC: https://gyazo.com/6e8f786af0028d6effcb6bb77202b428
+
             if (inst !== null) {
-
-
-
                 mapping.forEach((boneName, asfName) => {
                     const nodeIndex = vrmNameToNodeIndex.get(boneName);
                     const bone = this.vrmRenderer.getNodeByIndex(nodeIndex);
@@ -484,25 +483,40 @@ class MevApplication {
                         return;
                     }
                     if (asfName === "root") {
-                        bone.position.set(val.tx || 0, val.ty || 0, -val.tz || 0);
+                        bone.position.set(-val.tx, val.ty, -val.tz);
                     }
 
-                    if (asfName.includes("tibia")) {
-                        bone.quaternion.setFromEuler(new THREE.Euler(-val.rx, 0, -val.rz, "XYZ"));
-
-                    } else if (asfName.includes("humerus")) {
-                        bone.quaternion.setFromEuler(new THREE.Euler(val.rx || 0, val.ry || 0, val.rz || 0, "XYZ"));
+                    // TODO: Need to rotate some bones with 45-degree rotation.
+                    if (asfName.includes("humerus")) {
+                        bone.quaternion.setFromEuler(new THREE.Euler(val.rx, val.ry, val.rz || 0, "ZYX"));
                     } else if (asfName.includes("lradius")) {
-                        bone.quaternion.setFromEuler(new THREE.Euler(0, -val.rx, 0, "XYZ"));
+                        bone.quaternion.setFromEuler(new THREE.Euler(0, -val.rx, 0, "ZYX"));
                     } else if (asfName.includes("rradius")) {
-                        bone.quaternion.setFromEuler(new THREE.Euler(0, val.rx, 0, "XYZ"));
+                        bone.quaternion.setFromEuler(new THREE.Euler(0, val.rx, 0, "ZYX"));
                     } else if (asfName.includes("femur")) {
-                        bone.quaternion.setFromEuler(new THREE.Euler(-val.rx, 0, 0, "XYZ")); // ry, rz??
+                        bone.quaternion.setFromEuler(new THREE.Euler(-val.rx, 0, 0, "ZYX")); // ry, rz??
+                    } else if (asfName.includes("foot") || asfName.includes("toes")) {
+                        bone.quaternion.setFromEuler(new THREE.Euler(-val.rx, val.rz, val.ry, "ZYX"));
                     } else {
-                        bone.quaternion.setFromEuler(new THREE.Euler(-val.rx || 0, -val.ry || 0, -val.rz || 0, "XYZ"));
+                        bone.quaternion.setFromEuler(new THREE.Euler(-val.rx || 0, val.ry || 0, -val.rz || 0, "ZYX"));
                     }
 
                 });
+
+                // "lowerback", "upperback" -> "spine"
+                {
+                    const nodeIndex = vrmNameToNodeIndex.get("spine");
+                    const bone = this.vrmRenderer.getNodeByIndex(nodeIndex);
+
+                    const lowerBackV = currentMotion["lowerback"];
+                    const lowerBackQ = new THREE.Quaternion().setFromEuler(new THREE.Euler(-lowerBackV.rx || 0, -lowerBackV.ry || 0, -lowerBackV.rz || 0, "XYZ"));
+                    const upperBackV = currentMotion["upperback"];
+                    const upperBackQ = new THREE.Quaternion().setFromEuler(new THREE.Euler(-upperBackV.rx || 0, -upperBackV.ry || 0, -upperBackV.rz || 0, "XYZ"));
+
+                    bone.quaternion.multiplyQuaternions(upperBackQ, lowerBackQ);
+                }
+                
+
             }
         }
 
@@ -541,7 +555,7 @@ class MevApplication {
 
                         instance.traverse(o => {
                             if (o.type === "Bone") {
-                                o.add(new THREE.AxesHelper(0.2));
+                                o.add(new THREE.AxesHelper(0.3));
                             }
 
                         });
