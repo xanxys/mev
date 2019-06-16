@@ -128,9 +128,20 @@ class MevApplication {
             parent: "#loading_progress",
         }).start();
 
+
+
         // Overlay UI
         const app = this;
         app.heightIndicator = new HeightIndicator(this.scene);
+
+        const req = new Request("./temp.json");
+        app.motionFrames = [];
+        app.motionFrameIndex = 0;
+        fetch(req).then(response => response.json()).then(json => {
+            console.log("Motion", json);
+            app.motionFrames = json.motion;
+        });
+
 
         this.vm = new Vue({
             el: '#vue_menu',
@@ -415,6 +426,88 @@ class MevApplication {
     /** Executes and renders single frame and request next frame. */
     animate() {
         this.controls.update();
+
+        // Get single frame from cyclic motion frames
+        if (this.motionFrameIndex >= this.motionFrames.length) {
+            this.motionFrameIndex = 0;
+        }
+        const currentMotion = this.motionFrames[this.motionFrameIndex];
+        if (this.motionFrameIndex === 100 && this.motionFrames.length > 0) {
+            console.log("Motion frame example:", currentMotion);
+        }
+        this.motionFrameIndex++;
+
+        // TODO: apply
+        if (this.vrmRenderer) {
+            const inst = this.vrmRenderer.getThreeInstance();
+
+            // Motion data -> VRM bone
+            const lrMapping = new Map([
+                ["clavicle", "Scapula"],
+                ["humerus", "Shoulder"],
+                ["radius", "Elbow"],
+                ["wrist", "Wrist"],
+                ["femur", "Hip"],
+                ["tibia", "Knee"],
+                ["foot", "Ankle"],
+                ["toes", "Toes"],
+
+                ["fingers", "Cup"],
+                ["thumb", "ThumbFinger1"],
+            ]);
+            const mapping = new Map([
+                ["root", "Root_M"],
+                ["upperback", "Chest_M"],
+                ["lowerback", "Spine_M"],
+                ["lowerneck", "Neck_M"],
+                ["head", "Head_M"],
+                
+                // ["upperneck", ],
+            ]);
+            lrMapping.forEach((vrmName, motionName) => {
+                mapping.set("l" + motionName, vrmName + "_L");
+                mapping.set("r" + motionName, vrmName + "_R");
+            });
+
+
+            if (inst !== null) {
+
+                
+
+                mapping.forEach((boneName, motionName) => {
+                    const bone = inst.getObjectByName(boneName);
+                    const val = currentMotion[motionName];
+                    if (!bone || !val) {
+                        console.log("Not found", boneName, bone, motionName, val);
+                        return;
+                    }
+                    if (motionName === "root") {
+                        bone.position.set(val.tx || 0, val.ty || 0, -val.tz || 0);
+                    }
+                    
+                    if (motionName.includes("tibia")) {
+                        bone.quaternion.setFromEuler(new THREE.Euler(-val.rx, 0, -val.rz, "XYZ"));
+
+                    } else if (motionName.includes("humerus")) {
+                        bone.quaternion.setFromEuler(new THREE.Euler(val.rx || 0, val.ry || 0, val.rz || 0, "XYZ"));
+                    } else if (motionName.includes("lradius")) {
+                        bone.quaternion.setFromEuler(new THREE.Euler(0, -val.rx, 0, "XYZ"));
+                    } else if (motionName.includes("rradius")) {
+                        bone.quaternion.setFromEuler(new THREE.Euler(0, val.rx, 0, "XYZ"));
+                    } else if (motionName.includes("femur")) {
+                        bone.quaternion.setFromEuler(new THREE.Euler(-val.rx, val.rz, -val.ry, "XYZ"));
+                    } else {
+                        bone.quaternion.setFromEuler(new THREE.Euler(-val.rx || 0, -val.ry || 0, -val.rz || 0, "XYZ"));
+                    }
+                    
+                });
+            }
+        }
+        
+
+
+
+
         this.renderer.render(this.scene, this.camera);
 
         requestAnimationFrame(() => this.animate());
@@ -443,6 +536,15 @@ class MevApplication {
                 VrmModel.deserialize(reader.result).then(vrmModel => {
                     app.vrmRenderer = new VrmRenderer(vrmModel);  // Non-Vue binder of vrmModel.
                     app.vrmRenderer.getThreeInstanceAsync().then(instance => {
+
+                        instance.traverse(o => {
+                            if (o.type === "Bone") {
+                                o.add(new THREE.AxisHelper(0.2));
+                            }
+
+                        });
+
+
                         this.scene.add(instance);
                         // Ideally, this shouldn't need to wait for instance.
                         // But current MevApplication VM depends A LOT on Three instance...
