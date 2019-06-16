@@ -467,7 +467,7 @@ class MevApplication {
 
             const vrmNameToNodeIndex =
                 new Map(this.vm.vrmRoot.gltf.extensions.VRM.humanoid.humanBones.map(bone => [bone.bone, bone.node]));
-        
+
 
             // Coordinate Systems:
             // VRM/three: 
@@ -493,14 +493,17 @@ class MevApplication {
                         bone.quaternion.setFromEuler(new THREE.Euler(0, -val.rx, 0, "ZYX"));
                     } else if (asfName.includes("rradius")) {
                         bone.quaternion.setFromEuler(new THREE.Euler(0, val.rx, 0, "ZYX"));
-                    } else if (asfName.includes("femur")) {
-                        bone.quaternion.setFromEuler(new THREE.Euler(-val.rx, 0, 0, "ZYX")); // ry, rz??
+                    } else if (boneName.includes("UpperLeg")) {
+                        const legRotationZ = 0.350; // from skeleton.lfemur
+                        bone.quaternion.multiplyQuaternions(
+                            new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), boneName === "leftUpperLeg" ? -legRotationZ : legRotationZ),
+                            new THREE.Quaternion().setFromEuler(new THREE.Euler(-val.rx, val.ry, -val.rz, "ZYX"))
+                            );
                     } else if (asfName.includes("foot") || asfName.includes("toes")) {
                         bone.quaternion.setFromEuler(new THREE.Euler(-val.rx, val.rz, val.ry, "ZYX"));
                     } else {
                         bone.quaternion.setFromEuler(new THREE.Euler(-val.rx || 0, val.ry || 0, -val.rz || 0, "ZYX"));
                     }
-
                 });
 
                 // "lowerback", "upperback" -> "spine"
@@ -509,13 +512,13 @@ class MevApplication {
                     const bone = this.vrmRenderer.getNodeByIndex(nodeIndex);
 
                     const lowerBackV = currentMotion["lowerback"];
-                    const lowerBackQ = new THREE.Quaternion().setFromEuler(new THREE.Euler(-lowerBackV.rx || 0, -lowerBackV.ry || 0, -lowerBackV.rz || 0, "XYZ"));
+                    const lowerBackQ = new THREE.Quaternion().setFromEuler(new THREE.Euler(-lowerBackV.rx || 0, lowerBackV.ry || 0, -lowerBackV.rz || 0, "ZYX"));
                     const upperBackV = currentMotion["upperback"];
-                    const upperBackQ = new THREE.Quaternion().setFromEuler(new THREE.Euler(-upperBackV.rx || 0, -upperBackV.ry || 0, -upperBackV.rz || 0, "XYZ"));
+                    const upperBackQ = new THREE.Quaternion().setFromEuler(new THREE.Euler(-upperBackV.rx || 0, upperBackV.ry || 0, -upperBackV.rz || 0, "ZYX"));
 
                     bone.quaternion.multiplyQuaternions(upperBackQ, lowerBackQ);
                 }
-                
+
 
             }
         }
