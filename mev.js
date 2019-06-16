@@ -134,7 +134,7 @@ class MevApplication {
         const app = this;
         app.heightIndicator = new HeightIndicator(this.scene);
 
-        const req = new Request("./temp.json");
+        const req = new Request("https://s3.amazonaws.com/open-motion.herokuapp.com/json/01_01.json");
         app.motionFrames = [];
         app.motionFrameIndex = 0;
         fetch(req).then(response => response.json()).then(json => {
@@ -435,75 +435,77 @@ class MevApplication {
         if (this.motionFrameIndex === 100 && this.motionFrames.length > 0) {
             console.log("Motion frame example:", currentMotion);
         }
-        this.motionFrameIndex++;
+        this.motionFrameIndex += 2;
 
         // TODO: apply
-        if (this.vrmRenderer) {
+        if (this.vm.vrmRoot && this.vrmRenderer) {
             const inst = this.vrmRenderer.getThreeInstance();
 
-            // Motion data -> VRM bone
+            // Motion data -> VRM humanoid bone name
             const lrMapping = new Map([
-                ["clavicle", "Scapula"],
-                ["humerus", "Shoulder"],
-                ["radius", "Elbow"],
-                ["wrist", "Wrist"],
-                ["femur", "Hip"],
-                ["tibia", "Knee"],
-                ["foot", "Ankle"],
+                ["clavicle", "Shoulder"],
+                ["humerus", "UpperArm"],
+                ["radius", "LowerArm"],
+                ["wrist", "Hand"],
+                ["femur", "UpperLeg"],
+                ["tibia", "LowerLeg"],
+                ["foot", "Foot"],
                 ["toes", "Toes"],
 
-                ["fingers", "Cup"],
-                ["thumb", "ThumbFinger1"],
+                ["thumb", "ThumbProximal"],
             ]);
             const mapping = new Map([
-                ["root", "Root_M"],
-                ["upperback", "Chest_M"],
-                ["lowerback", "Spine_M"],
-                ["lowerneck", "Neck_M"],
-                ["head", "Head_M"],
-                
+                ["root", "hips"],
+                ["thorax", "chest"],
+                ["lowerback", "spine"],
+                ["lowerneck", "neck"],
+                ["head", "head"],
                 // ["upperneck", ],
             ]);
             lrMapping.forEach((vrmName, motionName) => {
-                mapping.set("l" + motionName, vrmName + "_L");
-                mapping.set("r" + motionName, vrmName + "_R");
+                mapping.set("l" + motionName, "left" + vrmName);
+                mapping.set("r" + motionName, "right" + vrmName);
             });
 
+            const vrmNameToNodeIndex =
+                new Map(this.vm.vrmRoot.gltf.extensions.VRM.humanoid.humanBones.map(bone => [bone.bone, bone.node]));
+        
 
             if (inst !== null) {
 
-                
 
-                mapping.forEach((boneName, motionName) => {
-                    const bone = inst.getObjectByName(boneName);
-                    const val = currentMotion[motionName];
+
+                mapping.forEach((boneName, asfName) => {
+                    const nodeIndex = vrmNameToNodeIndex.get(boneName);
+                    const bone = this.vrmRenderer.getNodeByIndex(nodeIndex);
+                    const val = currentMotion[asfName];
                     if (!bone || !val) {
-                        console.log("Not found", boneName, bone, motionName, val);
+                        console.log("Not found", boneName, bone, asfName, val);
                         return;
                     }
-                    if (motionName === "root") {
+                    if (asfName === "root") {
                         bone.position.set(val.tx || 0, val.ty || 0, -val.tz || 0);
                     }
-                    
-                    if (motionName.includes("tibia")) {
+
+                    if (asfName.includes("tibia")) {
                         bone.quaternion.setFromEuler(new THREE.Euler(-val.rx, 0, -val.rz, "XYZ"));
 
-                    } else if (motionName.includes("humerus")) {
+                    } else if (asfName.includes("humerus")) {
                         bone.quaternion.setFromEuler(new THREE.Euler(val.rx || 0, val.ry || 0, val.rz || 0, "XYZ"));
-                    } else if (motionName.includes("lradius")) {
+                    } else if (asfName.includes("lradius")) {
                         bone.quaternion.setFromEuler(new THREE.Euler(0, -val.rx, 0, "XYZ"));
-                    } else if (motionName.includes("rradius")) {
+                    } else if (asfName.includes("rradius")) {
                         bone.quaternion.setFromEuler(new THREE.Euler(0, val.rx, 0, "XYZ"));
-                    } else if (motionName.includes("femur")) {
-                        bone.quaternion.setFromEuler(new THREE.Euler(-val.rx, val.rz, -val.ry, "XYZ"));
+                    } else if (asfName.includes("femur")) {
+                        bone.quaternion.setFromEuler(new THREE.Euler(-val.rx, 0, 0, "XYZ")); // ry, rz??
                     } else {
                         bone.quaternion.setFromEuler(new THREE.Euler(-val.rx || 0, -val.ry || 0, -val.rz || 0, "XYZ"));
                     }
-                    
+
                 });
             }
         }
-        
+
 
 
 
@@ -539,7 +541,7 @@ class MevApplication {
 
                         instance.traverse(o => {
                             if (o.type === "Bone") {
-                                o.add(new THREE.AxisHelper(0.2));
+                                o.add(new THREE.AxesHelper(0.2));
                             }
 
                         });

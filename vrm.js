@@ -207,6 +207,10 @@ export class VrmRenderer {
         return this.instance.mapper.mapper.mapMesh(meshIndex);
     }
 
+    getNodeByIndex(nodeIndex) {
+        return this.instance.mapper.mapper.mapNode(nodeIndex);
+    }
+
     /** Notifies that underlying model was updated, and instance needs to change. */
     invalidate() {
         this.instanceContainer = this.instance.parent;
