@@ -141,6 +141,7 @@ class MevApplication {
         const req = new Request("https://s3.amazonaws.com/open-motion.herokuapp.com/json/40_10.json");
         app.motionFrames = [];
         app.motionFrameIndex = 0;
+        app.retargetingYOffset = null;
         fetch(req).then(response => response.json()).then(json => {
             console.log("Motion", json);
             app.motionFrames = json.motion;
@@ -478,6 +479,16 @@ class MevApplication {
             // ASF/AMC: https://gyazo.com/6e8f786af0028d6effcb6bb77202b428
 
             if (inst !== null) {
+
+                // In T-pose, toe.y must be > 0 and model should be perfectly touching surface.
+                let toeToFloor = 0;
+                if (this.retargetingYOffset === null) {
+                    const nodeIndex = vrmNameToNodeIndex.get("leftToes");
+                    const bone = this.vrmRenderer.getNodeByIndex(nodeIndex);
+                    toeToFloor = bone.getWorldPosition(new THREE.Vector3()).y;
+                }
+
+
                 mapping.forEach((boneName, asfName) => {
                     const nodeIndex = vrmNameToNodeIndex.get(boneName);
                     const bone = this.vrmRenderer.getNodeByIndex(nodeIndex);
@@ -491,7 +502,8 @@ class MevApplication {
                     }
 
                     if (asfName === "root") {
-                        bone.position.set(-val.tx, val.ty, -val.tz);
+                        const offset = this.retargetingYOffset === null ? 0 : this.retargetingYOffset;
+                        bone.position.set(-val.tx, val.ty + offset, -val.tz);
                     }
 
                     if (boneName.includes("UpperArm")) {
@@ -505,22 +517,22 @@ class MevApplication {
                             const qY = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(-1, 0, 0), val.ry);
                             const qZ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, -isq2, isq2), val.rz);
                             const boneDeltaRot = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), clavicleRot);
-    
+
                             qZ.multiply(qY);
                             qZ.multiply(qX);
                             qZ.multiply(boneDeltaRot);
-    
+
                             bone.quaternion.copy(qZ);
                         } else {
                             const qX = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, -isq2, -isq2), val.rx);
                             const qY = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), val.ry);
                             const qZ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, -isq2, isq2), val.rz);
                             const boneDeltaRot = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -clavicleRot);
-    
+
                             qZ.multiply(qY);
                             qZ.multiply(qX);
                             qZ.multiply(boneDeltaRot);
-    
+
                             bone.quaternion.copy(qZ);
                         }
                     } else if (boneName.includes("leftLowerArm")) {
@@ -552,6 +564,16 @@ class MevApplication {
 
                     bone.quaternion.multiplyQuaternions(upperBackQ, lowerBackQ);
                 }
+
+                const nodeIndex = vrmNameToNodeIndex.get("leftToes");
+                const bone = this.vrmRenderer.getNodeByIndex(nodeIndex);
+
+                if (this.retargetingYOffset === null) {
+                    inst.updateMatrixWorld();
+                    this.retargetingYOffset = -(bone.getWorldPosition(new THREE.Vector3()).y - toeToFloor);
+                }
+
+
 
 
             }
