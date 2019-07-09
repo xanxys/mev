@@ -527,23 +527,86 @@ class MevApplication {
     }
 
     /**
-     * Creates circular stage with:
-     * - normal pointing Y+ ("up" in VRM spec & me/v app)
-     * - notch at Z-. ("front" in VRM spec)
+     * Creates stage with enough space for walking motion. (tied implicitly with motionPlayer)
      */
     _createStage() {
-        const stageGeom = new THREE.CircleBufferGeometry(1, 64);
         const stageMat = new THREE.MeshBasicMaterial({ color: "white" });
-        const stageObj = new THREE.Mesh(stageGeom, stageMat);
-        stageObj.setRotationFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI * 1.5);
+        const accentMat = new THREE.MeshBasicMaterial({ color: "grey" });
 
-        const notchGeom = new THREE.CircleBufferGeometry(0.02, 16);
-        const notchMat = new THREE.MeshBasicMaterial({ color: "grey" });
-        const notchObj = new THREE.Mesh(notchGeom, notchMat);
-        notchObj.position.set(0, 0.95, 0.001);
+        const stageBaseGeom = MevApplication._createRoundedQuad(2, 3, 0.3);
+        const stageBaseObj = new THREE.Mesh(stageBaseGeom, stageMat);
 
-        stageObj.add(notchObj);
-        return stageObj;
+        const stageAccentGeom = MevApplication._createRoundedQuad(1.8, 2.8, 0.2);
+        const stageAccentObj = new THREE.Mesh(stageAccentGeom, accentMat);
+        stageAccentObj.position.y = 5e-3;
+
+        const stageTopGeom = MevApplication._createRoundedQuad(1.78, 2.78, 0.19);
+        const stageTopObj = new THREE.Mesh(stageTopGeom, stageMat);
+        stageTopObj.position.y = 15e-3;
+
+        stageBaseObj.add(stageAccentObj);
+        stageBaseObj.add(stageTopObj);
+        stageBaseObj.position.set(-0.2, -15e-3, 0.5);
+        return stageBaseObj;
+    }
+
+    /**
+     * Creates rounded quad of size [-xSize/2, xSize/2] x [-zSize/2, zSize/2] (poiting Y+).
+     * @param {number} xSize 
+     * @param {number} zSize 
+     * @param {number} radius
+     * @returns {BufferGeometry}
+     */
+    static _createRoundedQuad(xSize, zSize, radius) {
+        const xHalf = xSize / 2;
+        const zHalf = zSize / 2;
+        const NUM_CORNER_SEGMENTS = 16;
+
+        // Create N-gon as fan-like structure
+        // * center: origin
+        // * N-gon vertices (= num triangles): 4 (edges) + NUM_CORNER_SEGMENTS * 4 (corners)
+        const NUM_TRIS = 4 + 4 * NUM_CORNER_SEGMENTS;
+
+        //   corner=1
+        //   /-----------\    corner=0
+        //  /             \ <- 0
+        //  |             |
+        //  \            / <- N - 1
+        //   \----------/ corner=3
+        let perimeterVerrices = [];
+        for (var cornerIx = 0; cornerIx < 4; cornerIx++) {
+            const cornerCenterX = (cornerIx === 0 || cornerIx === 3) ? xHalf - radius : - (xHalf - radius);
+            const cornerCenterZ = (cornerIx === 0 || cornerIx === 1) ? zHalf - radius : - (zHalf - radius);
+
+            const angleOffset = Math.PI / 2 * cornerIx;
+            for (var segmentIx = 0; segmentIx < NUM_CORNER_SEGMENTS + 1; segmentIx++) {
+                const angle = angleOffset + (segmentIx / NUM_CORNER_SEGMENTS) * (Math.PI / 2);
+                perimeterVerrices.push(
+                    new THREE.Vector3(cornerCenterX + Math.cos(angle) * radius, 0, cornerCenterZ + Math.sin(angle) * radius));
+            }
+        }
+
+        let vertices = new Float32Array(NUM_TRIS * 3 * 3);
+        for (var ix = 0; ix < NUM_TRIS; ix++) {
+            // center
+            vertices[ix * 9 + 0] = 0;
+            vertices[ix * 9 + 1] = 0;
+            vertices[ix * 9 + 2] = 0;
+
+            const p = perimeterVerrices[(ix + 1) % perimeterVerrices.length];
+            vertices[ix * 9 + 3] = p.x;
+            vertices[ix * 9 + 4] = p.y;
+            vertices[ix * 9 + 5] = p.z;
+
+            const q = perimeterVerrices[ix];
+            vertices[ix * 9 + 6] = q.x;
+            vertices[ix * 9 + 7] = q.y;
+            vertices[ix * 9 + 8] = q.z;
+        }
+
+        let geom = new THREE.BufferGeometry();
+        geom.addAttribute("position", new THREE.BufferAttribute(vertices, 3));
+        return geom;
     }
 }
 
