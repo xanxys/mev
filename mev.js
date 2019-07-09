@@ -649,17 +649,17 @@ class HeightIndicator {
         // Text
         {
             const canvas = document.createElement("canvas");
-            canvas.width = 128;
-            canvas.height = 128;
+            canvas.width = 256;
+            canvas.height = 256;
             const ctx = canvas.getContext("2d");
             ctx.fillColor = "black";
             ctx.font = "32px Roboto";
-            ctx.fillText(height.toFixed(2) + "m", 0, 32);
+            ctx.fillText("身長 " + height.toFixed(2) + "m", 0, 128);
 
             const tex = new THREE.CanvasTexture(canvas);
             const mat = new THREE.SpriteMaterial({ map: tex });
             const sprite = new THREE.Sprite(mat);
-            sprite.scale.set(0.25, 0.25, 0.25);
+            sprite.scale.set(0.5, 0.5, 0.5);
             sprite.position.set(-0.5, height - 0.05, 0);
 
             this.sprite = sprite;
