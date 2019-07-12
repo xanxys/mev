@@ -4,6 +4,7 @@ import { setupStartDialog } from './components/start-dialog.js';
 import { } from './components/menu-section-emotion.js';
 import { } from './components/menu-section-image.js';
 import { flatten, objectToTreeDebug, blendshapeToEmotionId } from './mev-util.js';
+import { MotionPlayer } from './motion.js';
 
 const EMOTION_PRESET_GROUPING = [
     ["neutral"],
@@ -131,6 +132,17 @@ class MevApplication {
         // Overlay UI
         const app = this;
         app.heightIndicator = new HeightIndicator(this.scene);
+
+        // ID: http://mocap.cs.cmu.edu/search.php?subjectnumber=%&motion=%
+        // 01_09: good complex 3D movement
+        // 09_12: walk in various direction
+        // 40_10: "wait for bus" movement (good for idle)
+        this.motionPlayer = null;
+        const req = new Request("https://s3.amazonaws.com/open-motion.herokuapp.com/json/40_10.json");
+        fetch(req).then(response => response.json()).then(json => {
+            console.log("Motion", json);
+            this.motionPlayer = new MotionPlayer(json);
+        });
 
         this.vm = new Vue({
             el: '#vue_menu',
@@ -415,8 +427,10 @@ class MevApplication {
     /** Executes and renders single frame and request next frame. */
     animate() {
         this.controls.update();
+        if (this.motionPlayer !== null) {
+            this.motionPlayer.stepFrame(this.vm.vrmRoot, this.vrmRenderer);
+        }
         this.renderer.render(this.scene, this.camera);
-
         requestAnimationFrame(() => this.animate());
     }
 
@@ -443,6 +457,15 @@ class MevApplication {
                 VrmModel.deserialize(reader.result).then(vrmModel => {
                     app.vrmRenderer = new VrmRenderer(vrmModel);  // Non-Vue binder of vrmModel.
                     app.vrmRenderer.getThreeInstanceAsync().then(instance => {
+
+                        instance.traverse(o => {
+                            if (o.type === "Bone") {
+                                //o.add(new THREE.AxesHelper(0.3));
+                            }
+
+                        });
+
+
                         this.scene.add(instance);
                         // Ideally, this shouldn't need to wait for instance.
                         // But current MevApplication VM depends A LOT on Three instance...
@@ -504,23 +527,86 @@ class MevApplication {
     }
 
     /**
-     * Creates circular stage with:
-     * - normal pointing Y+ ("up" in VRM spec & me/v app)
-     * - notch at Z-. ("front" in VRM spec)
+     * Creates stage with enough space for walking motion. (tied implicitly with motionPlayer)
      */
     _createStage() {
-        const stageGeom = new THREE.CircleBufferGeometry(1, 64);
         const stageMat = new THREE.MeshBasicMaterial({ color: "white" });
-        const stageObj = new THREE.Mesh(stageGeom, stageMat);
-        stageObj.setRotationFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI * 1.5);
+        const accentMat = new THREE.MeshBasicMaterial({ color: "grey" });
 
-        const notchGeom = new THREE.CircleBufferGeometry(0.02, 16);
-        const notchMat = new THREE.MeshBasicMaterial({ color: "grey" });
-        const notchObj = new THREE.Mesh(notchGeom, notchMat);
-        notchObj.position.set(0, 0.95, 0.001);
+        const stageBaseGeom = MevApplication._createRoundedQuad(2, 3, 0.3);
+        const stageBaseObj = new THREE.Mesh(stageBaseGeom, stageMat);
 
-        stageObj.add(notchObj);
-        return stageObj;
+        const stageAccentGeom = MevApplication._createRoundedQuad(1.8, 2.8, 0.2);
+        const stageAccentObj = new THREE.Mesh(stageAccentGeom, accentMat);
+        stageAccentObj.position.y = 5e-3;
+
+        const stageTopGeom = MevApplication._createRoundedQuad(1.78, 2.78, 0.19);
+        const stageTopObj = new THREE.Mesh(stageTopGeom, stageMat);
+        stageTopObj.position.y = 15e-3;
+
+        stageBaseObj.add(stageAccentObj);
+        stageBaseObj.add(stageTopObj);
+        stageBaseObj.position.set(-0.2, -15e-3, 0.5);
+        return stageBaseObj;
+    }
+
+    /**
+     * Creates rounded quad of size [-xSize/2, xSize/2] x [-zSize/2, zSize/2] (poiting Y+).
+     * @param {number} xSize 
+     * @param {number} zSize 
+     * @param {number} radius
+     * @returns {BufferGeometry}
+     */
+    static _createRoundedQuad(xSize, zSize, radius) {
+        const xHalf = xSize / 2;
+        const zHalf = zSize / 2;
+        const NUM_CORNER_SEGMENTS = 16;
+
+        // Create N-gon as fan-like structure
+        // * center: origin
+        // * N-gon vertices (= num triangles): 4 (edges) + NUM_CORNER_SEGMENTS * 4 (corners)
+        const NUM_TRIS = 4 + 4 * NUM_CORNER_SEGMENTS;
+
+        //   corner=1
+        //   /-----------\    corner=0
+        //  /             \ <- 0
+        //  |             |
+        //  \            / <- N - 1
+        //   \----------/ corner=3
+        let perimeterVerrices = [];
+        for (var cornerIx = 0; cornerIx < 4; cornerIx++) {
+            const cornerCenterX = (cornerIx === 0 || cornerIx === 3) ? xHalf - radius : - (xHalf - radius);
+            const cornerCenterZ = (cornerIx === 0 || cornerIx === 1) ? zHalf - radius : - (zHalf - radius);
+
+            const angleOffset = Math.PI / 2 * cornerIx;
+            for (var segmentIx = 0; segmentIx < NUM_CORNER_SEGMENTS + 1; segmentIx++) {
+                const angle = angleOffset + (segmentIx / NUM_CORNER_SEGMENTS) * (Math.PI / 2);
+                perimeterVerrices.push(
+                    new THREE.Vector3(cornerCenterX + Math.cos(angle) * radius, 0, cornerCenterZ + Math.sin(angle) * radius));
+            }
+        }
+
+        let vertices = new Float32Array(NUM_TRIS * 3 * 3);
+        for (var ix = 0; ix < NUM_TRIS; ix++) {
+            // center
+            vertices[ix * 9 + 0] = 0;
+            vertices[ix * 9 + 1] = 0;
+            vertices[ix * 9 + 2] = 0;
+
+            const p = perimeterVerrices[(ix + 1) % perimeterVerrices.length];
+            vertices[ix * 9 + 3] = p.x;
+            vertices[ix * 9 + 4] = p.y;
+            vertices[ix * 9 + 5] = p.z;
+
+            const q = perimeterVerrices[ix];
+            vertices[ix * 9 + 6] = q.x;
+            vertices[ix * 9 + 7] = q.y;
+            vertices[ix * 9 + 8] = q.z;
+        }
+
+        let geom = new THREE.BufferGeometry();
+        geom.addAttribute("position", new THREE.BufferAttribute(vertices, 3));
+        return geom;
     }
 }
 
@@ -563,17 +649,17 @@ class HeightIndicator {
         // Text
         {
             const canvas = document.createElement("canvas");
-            canvas.width = 128;
-            canvas.height = 128;
+            canvas.width = 256;
+            canvas.height = 256;
             const ctx = canvas.getContext("2d");
             ctx.fillColor = "black";
             ctx.font = "32px Roboto";
-            ctx.fillText(height.toFixed(2) + "m", 0, 32);
+            ctx.fillText("身長 " + height.toFixed(2) + "m", 0, 128);
 
             const tex = new THREE.CanvasTexture(canvas);
             const mat = new THREE.SpriteMaterial({ map: tex });
             const sprite = new THREE.Sprite(mat);
-            sprite.scale.set(0.25, 0.25, 0.25);
+            sprite.scale.set(0.5, 0.5, 0.5);
             sprite.position.set(-0.5, height - 0.05, 0);
 
             this.sprite = sprite;
