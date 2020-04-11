@@ -1,9 +1,11 @@
 // ES6
 import {VrmModel} from "./vrm.js";
 
-// model will be mutated
+/**
+ * @param {VrmModel} model: will be mutated
+ * @returns {Promise<null>}
+ */
 export function reduceVrm(model) {
-
     //// conditional lossless
 
     // Remove Blendshape weights
@@ -23,20 +25,23 @@ export function reduceVrm(model) {
 
     // float-quantization
 
-    extremeResizeTexture(model);
-    model.version += 1;
+    return extremeResizeTexture(model, 128);
 }
 
-function extremeResizeTexture(model) {
+/**
+ * @returns {Promise<null>}
+ */
+function extremeResizeTexture(model, maxTexSizePx) {
+    const resizePromises = [];
     for (let i = 0; i < model.gltf.images.length; i++) {
+        const bufferViewIx = model.gltf.images[i].bufferView;
         const imageBlob = model.getImageAsBuffer(i);
 
-        Jimp.read(imageBlob).then(img => {
-            console.log("image read", i, img);
-        });
-
+        resizePromises.push(
+            Jimp.read(imageBlob)
+                .then(img => img.scaleToFit(maxTexSizePx, maxTexSizePx).getBufferAsync("image/png"))
+                .then(imgSmallBlob => model.setBufferData(bufferViewIx, imgSmallBlob)));
     }
-    
 
-
+    return Promise.all(resizePromises).then(_ =>model.repackBuffer());
 }

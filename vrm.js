@@ -143,6 +143,29 @@ export class VrmModel {
         return this._getBufferView(img.bufferView);
     }
 
+    /**
+     * 
+     * @param {number} bufferiewIx: glTF bufferView index
+     * @param {ArrayBuffer} newData: new buffer data
+     */
+    setBufferData(bufferViewIx, newData) {
+        const offset = this.buffers[0].byteLength;
+
+        const newBuffer = new ArrayBuffer(offset + newData.byteLength);
+        const newBufferView = new Uint8Array(newBuffer);
+        newBufferView.set(new Uint8Array(this.buffers[0]));
+        newBufferView.set(new Uint8Array(newData), offset);
+
+        this.buffers[0] = newBuffer;
+        this.gltf.bufferViews[bufferViewIx] = {
+            buffer: 0,
+            byteOffset: offset,
+            byteLength: newData.byteLength,
+        };
+
+        this.version += 1;
+    }
+
     getImageAsDataUrl(imageId) {
         const img = this.gltf.images[imageId];
         const data = this._getBufferView(img.bufferView);

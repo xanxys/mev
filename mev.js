@@ -216,7 +216,7 @@ class MevApplication {
                     });
                 },
                 reduceVrm: function (event) {
-                    reduceVrm(this.vrmRoot);
+                    reduceVrm(this.vrmRoot).then(_ => this.updateVrm(this.vrmRoot));
                 },
                 showDetails: function (event) {
                     setupDetailsDialog(this.vrmRoot);
