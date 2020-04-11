@@ -26,9 +26,6 @@ export function setupDetailsDialog(vrmModel) {
                 document.getElementById("vue_details_dialog").style.display = "none";
             },
             updateDetails: function(vrmModel) {
-                
-                let details = "";
-
                 const textureUsage = new Map();
                 vrmModel.gltf.materials.forEach(mat => {
                     const matName = `mat(${mat.name})`;
@@ -46,7 +43,8 @@ export function setupDetailsDialog(vrmModel) {
                     if (textureUsage.has(texId)) {
                         multimapAdd(imageUsage, imgId, ...textureUsage.get(texId).map(usage => `${texRef} as ${usage}`));
                     } else {
-                        multimapAdd(imageUsage, imgId, `${texRef} (not referenced)`);
+                        // TODO: want to include "(not referenced)" when material texture scanning become exhaustive.
+                        multimapAdd(imageUsage, imgId, `${texRef}`);
                     }
                 });
                 console.log("image", imageUsage);
@@ -97,6 +95,7 @@ export function setupDetailsDialog(vrmModel) {
 
 
                 // Chunks
+                let details = "";
                 details += "Chunks\n";
                 details += "  " + JSON.stringify(vrmModel.gltf).length.toLocaleString("en-US") + " byte (JSON)\n";
                 vrmModel.buffers.forEach(buffer => details += "  " + buffer.byteLength.toLocaleString("en-US") + " byte (binary)\n");
@@ -113,14 +112,6 @@ export function setupDetailsDialog(vrmModel) {
                 });
 
                 details += vrmModel.countTotalTris().toLocaleString("en-US") + "tris";
-
-                /*
-                TODO:
-                accesor > bv
-                mesh > material, accessor
-                */
-
-
 
                 this.detailsText = details;
             },
