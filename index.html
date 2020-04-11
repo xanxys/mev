@@ -6,6 +6,7 @@
   <title>me/v</title>
   <link rel="stylesheet" href="./mev.css" type="text/css">
   <link rel="stylesheet" href="./components/start-dialog.css" type="text/css">
+  <link rel="stylesheet" href="./components/details-dialog.css" type="text/css">
   <link rel="stylesheet" href="./third_party/checkbox.css" type="text/css">
   <link rel="stylesheet" href="./third_party/mprogress.min.css" type="text/css">
 </head>
@@ -31,6 +32,18 @@
     <section>
       <span class="text-aux">※編集はすべてブラウザ内で行われ、読み込んだデータがアップロードされることはありません。</span>
     </section>
+  </div>
+
+  <div style="position: absolute; left:25%; top: 50px; width:50%; display: none" id="vue_details_dialog">
+    <!-- Toolbar -->
+    <section class="menu_toolbar">
+      <h1 style="display:inline-block">VRMデータ詳細</h1>
+      <button class="toolbar_button" @click="clickCloseButton">
+        <img src="ui_asset/close-white-18dp.svg" />
+      </button>
+    </section>
+
+    <pre style="overflow:scroll; height: 800px">{{detailsText}}</pre>
   </div>
 
   <div style="position: absolute; left:8px; top: 8px; width: 240px; display: none" id="vue_menu">
@@ -95,7 +108,8 @@
         <h2>VRMに出力</h2>
         <div class="normal-text">サイズ: {{finalVrmSizeApprox}}</div>
         <div class="normal-text">ポリゴン: {{finalVrmTris}}</div>
-        <button @click="downloadVrm">ダウンロード</button>
+        <button @click="downloadVrm">ダウンロード</button><br/>
+        <a class="normal-text" href="#" @click="showDetails">データ詳細(開発者向け)</a>
       </section>
     </section>
   </div>
