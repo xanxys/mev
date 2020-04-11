@@ -51,6 +51,11 @@ button.toolbar_button {
     padding: 12px;
 }
 
+toolbar_button.img {
+    width: 24px;
+    height: 24px;
+}
+
 body {
     font-family: 'Noto Sans JP', sans-serif;
 }

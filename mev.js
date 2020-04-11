@@ -1,6 +1,7 @@
 // ES6
 import { VrmModel, VrmRenderer } from './vrm.js';
 import { setupStartDialog } from './components/start-dialog.js';
+import { setupDetailsDialog } from './components/details-dialog.js';
 import { } from './components/menu-section-emotion.js';
 import { } from './components/menu-section-image.js';
 import { flatten, objectToTreeDebug, blendshapeToEmotionId } from './mev-util.js';
@@ -212,6 +213,9 @@ class MevApplication {
                     this.vrmRoot.serialize().then(buffer => {
                         saveAs(new Blob([buffer], { type: "application/octet-stream" }), "test.vrm");
                     });
+                },
+                showDetails: function (event) {
+                    setupDetailsDialog(this.vrmRoot);
                 },
                 clickBackButton: function () {
                     this.currentPane = PANE_MODE.DEFAULT;
