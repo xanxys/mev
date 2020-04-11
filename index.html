@@ -109,6 +109,7 @@
         <div class="normal-text">サイズ: {{finalVrmSizeApprox}}</div>
         <div class="normal-text">ポリゴン: {{finalVrmTris}}</div>
         <button @click="downloadVrm">ダウンロード</button><br/>
+        <button @click="reduceVrm">Reduce</button><br/>
         <a class="normal-text" href="#" @click="showDetails">データ詳細(開発者向け)</a>
       </section>
     </section>
@@ -176,6 +177,7 @@
     integrity="sha256-T4lfPbatZLyNhpEgCvtmXmlhOUq0HZHkDX4cMlQWExA=" crossorigin="anonymous"></script>-->
 
   <script src="./third_party/zlib.js"></script>
+  <script src="./third_party/jimp.min.js"></script>
   <script src="./third_party/three_fbx_loader.js"></script>
   <script src="./third_party/three_orbit_controls.js"></script>
   <script src="./third_party/file_saver.js"></script>

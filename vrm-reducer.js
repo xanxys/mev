@@ -9,6 +9,7 @@ export function reduceVrm(model) {
     // Remove Blendshape weights
     // Remove non-moving bones & weights
     // Remove nodes
+    // Blendshape group reduction
 
     //// lossy
 
@@ -21,5 +22,21 @@ export function reduceVrm(model) {
     //// misc
 
     // float-quantization
+
+    extremeResizeTexture(model);
+    model.version += 1;
+}
+
+function extremeResizeTexture(model) {
+    for (let i = 0; i < model.gltf.images.length; i++) {
+        const imageBlob = model.getImageAsBuffer(i);
+
+        Jimp.read(imageBlob).then(img => {
+            console.log("image read", i, img);
+        });
+
+    }
+    
+
 
 }

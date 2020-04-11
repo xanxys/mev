@@ -1,5 +1,6 @@
 // ES6
 import { VrmModel, VrmRenderer } from './vrm.js';
+import { reduceVrm } from './vrm-reducer.js';
 import { setupStartDialog } from './components/start-dialog.js';
 import { setupDetailsDialog } from './components/details-dialog.js';
 import { } from './components/menu-section-emotion.js';
@@ -213,6 +214,9 @@ class MevApplication {
                     this.vrmRoot.serialize().then(buffer => {
                         saveAs(new Blob([buffer], { type: "application/octet-stream" }), "test.vrm");
                     });
+                },
+                reduceVrm: function (event) {
+                    reduceVrm(this.vrmRoot);
                 },
                 showDetails: function (event) {
                     setupDetailsDialog(this.vrmRoot);
