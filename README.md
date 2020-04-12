@@ -12,7 +12,7 @@
 
 2.b. VRM simple material config (base tex color param)
 
-3. FBX importing
+3. VRM reduction
 
 ## Using as VRM loader library (not officially supported yet)
 
