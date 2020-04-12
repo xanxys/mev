@@ -10,6 +10,18 @@ function multimapAdd(map, k, ...deltaVs) {
     map.set(k, vs);
 }
 
+function sameObject(a, b) {
+    if (Object.entries(a).length !== Object.entries(b).length) {
+        return false;
+    }
+    for (const k in a) {
+        if (a[k] !== b[k]) {
+            return false;
+        }
+    }
+    return true;
+}
+
 export function setupDetailsDialog(vrmModel) {
     document.getElementById("vue_details_dialog").style.display = "block";
     if (!firstTime) {
@@ -68,13 +80,32 @@ export function setupDetailsDialog(vrmModel) {
 
                 const accessorUsage = new Map();
                 vrmModel.gltf.meshes.forEach((mesh, meshId) => {
-                    mesh.primitives.forEach((prim, primId) => {
-                        multimapAdd(accessorUsage, prim.indices, `mesh(${mesh.name}).prim[${primId}].indices`);
+                    if (mesh.primitives.length === 0) {
+                        return;
+                    }
+                    const referencePrim = mesh.primitives[0];
 
-                        Object.entries(prim.attributes).forEach(([attribName, accId]) => {
-                            multimapAdd(accessorUsage, accId, `mesh(${mesh.name}).prim[${primId}].${attribName}`);
+                    if (mesh.primitives.every(prim => prim.indices === referencePrim.indices)) {
+                        multimapAdd(accessorUsage, referencePrim.indices, `mesh(${mesh.name}).prim[*].indices`);
+                    } else {
+                        mesh.primitives.forEach((prim, primId) => {
+                            multimapAdd(accessorUsage, prim.indices, `mesh(${mesh.name}).prim[${primId}].indices`);
                         });
+                    }
 
+                    if (mesh.primitives.every(prim => sameObject(prim.attributes, referencePrim.attributes))) {
+                        Object.entries(referencePrim.attributes).forEach(([attribName, accId]) => {
+                            multimapAdd(accessorUsage, accId, `mesh(${mesh.name}).prim[*].${attribName}`);
+                        });
+                    } else {
+                        mesh.primitives.forEach((prim, primId) => {
+                            Object.entries(prim.attributes).forEach(([attribName, accId]) => {
+                                multimapAdd(accessorUsage, accId, `mesh(${mesh.name}).prim[${primId}].${attribName}`);
+                            });
+                        });
+                    }
+
+                    mesh.primitives.forEach((prim, primId) => {
                         if (prim.targets) {
                             prim.targets.forEach((target, targetId) => {
                                 Object.entries(target).forEach(([attribName, accId]) => {
