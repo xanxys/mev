@@ -31,17 +31,14 @@ export function reduceVrm(model) {
 /**
  * @returns {Promise<null>}
  */
-function extremeResizeTexture(model, maxTexSizePx) {
-    const resizePromises = [];
+async function extremeResizeTexture(model, maxTexSizePx) {
     for (let i = 0; i < model.gltf.images.length; i++) {
         const bufferViewIx = model.gltf.images[i].bufferView;
         const imageBlob = model.getImageAsBuffer(i);
 
-        resizePromises.push(
-            Jimp.read(imageBlob)
-                .then(img => img.scaleToFit(maxTexSizePx, maxTexSizePx).getBufferAsync("image/png"))
-                .then(imgSmallBlob => model.setBufferData(bufferViewIx, imgSmallBlob)));
+        const img = await Jimp.read(imageBlob);
+        const smallBlob = await img.scaleToFit(maxTexSizePx, maxTexSizePx).getBufferAsync("image/png");
+        model.setBufferData(bufferViewIx, smallBlob);
     }
-
-    return Promise.all(resizePromises).then(_ =>model.repackBuffer());
+    model.repackBuffer();
 }
