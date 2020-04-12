@@ -1,7 +1,7 @@
 // ES6
 import * as vrm_mat from './vrm-materials.js';
-import { GLTFLoader, WEBGL_CONSTANTS } from './gltf-three.js';
-import { VrmModel } from './vrm.js';
+import { GLTFLoader } from './gltf-three.js';
+import { VrmModel } from './vrm-core/vrm.js';
 import { blendshapeToEmotionId } from './mev-util.js';
 
 /**

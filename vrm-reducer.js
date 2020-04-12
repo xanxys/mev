@@ -1,5 +1,5 @@
 // ES6
-import {VrmModel} from "./vrm.js";
+import {VrmModel} from "./vrm-core/vrm.js";
 
 /**
  * @param {VrmModel} model: will be mutated

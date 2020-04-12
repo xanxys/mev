@@ -1,4 +1,4 @@
-import { VrmModel } from './vrm.js';
+import { VrmModel } from './vrm-core/vrm.js';
 import { VrmRenderer } from './vrm-renderer.js';
 
 /**
