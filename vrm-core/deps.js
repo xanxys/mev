@@ -7,25 +7,27 @@ export class VrmDependency {
      */
     constructor(vrmModel) {
         const textureUsage = new Map();
+        if (vrmModel.gltf.extensions.VRM.meta && vrmModel.gltf.extensions.VRM.meta.texture !== undefined) {
+            multimapAdd(textureUsage, vrmModel.gltf.extensions.VRM.meta.texture, "VRM-thumbnail");
+        }
         vrmModel.gltf.materials.forEach((mat, matId) => {
             const matName = `mat(${mat.name})`;
     
             const matProps = vrmModel.gltf.extensions.VRM.materialProperties;
             if (matProps && matId < matProps.length) {
-                if (matProps[matId].textureProperties._ShadeTexture !== undefined) {
+                Object.entries(matProps[matId].textureProperties).forEach(([propName, texId]) => {
                     multimapAdd(
-                        textureUsage, matProps[matId].textureProperties._ShadeTexture,
-                        `${matName}.shade`);
-                }
+                        textureUsage, texId, `${matName}.vrm${propName}`);
+                })
             }
     
             if (mat.pbrMetallicRoughness && mat.pbrMetallicRoughness.baseColorTexture) {
                 const texId = mat.pbrMetallicRoughness.baseColorTexture.index;
-                multimapAdd(textureUsage, texId, `${matName}.base`);
+                multimapAdd(textureUsage, texId, `${matName}.pbr_baseColor`);
             }
             if (mat.pbrMetallicRoughness && mat.pbrMetallicRoughness.metallicRoughnessTexture) {
                 const texId = mat.pbrMetallicRoughness.metallicRoughnessTexture.index;
-                multimapAdd(textureUsage, texId, `${matName}.roughness`);
+                multimapAdd(textureUsage, texId, `${matName}.pbr_roughness`);
             }
             if (mat.emissiveTexture) {
                 multimapAdd(textureUsage, mat.emissiveTexture.index, `${matName}.emission`);
