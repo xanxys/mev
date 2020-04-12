@@ -79,15 +79,17 @@ async function removeUnusedMorphs(model) {
         let newMorphIx = 0;
         for (let morphIx = 0; morphIx < numMorphs; morphIx++) {
             const key = `${meshId}:${morphIx}`;
-            if (usedMeshIdMorphIdPairs.has(key)) {
-                morphRemap.set(key, newMorphIx);
-                mesh.primitives.forEach((prim, primIx) => {
-                    newTargets[primIx].push(prim.targets[morphIx]);
-                    newExtraTargetNames.push(
-                        (prim.extras && prim.extras.targetNames) ? prim.extras.targetNames[morphIx] : "");
-                });
-                newMorphIx++;
+            if (!usedMeshIdMorphIdPairs.has(key)) {
+                continue;
             }
+            
+            morphRemap.set(key, newMorphIx);
+            mesh.primitives.forEach((prim, primIx) => {
+                newTargets[primIx].push(prim.targets[morphIx]);
+                newExtraTargetNames.push(
+                    (prim.extras && prim.extras.targetNames) ? prim.extras.targetNames[morphIx] : "");
+            });
+            newMorphIx++;
         }
 
         mesh.primitives.forEach((prim, primIx) => {
