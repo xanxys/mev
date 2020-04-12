@@ -1,5 +1,6 @@
 // ES6
-import {VrmModel} from "./vrm-core/vrm.js";
+import { VrmModel } from "./vrm-core/vrm.js";
+import { VrmDependency } from "./vrm-core/deps.js";
 
 /**
  * @param {VrmModel} model: will be mutated
@@ -116,7 +117,8 @@ async function removeUnusedMorphs(model) {
  * @returns {Promise<null>}
  */
 async function removeUnusedBufferViews(model) {
-
+    const deps = new VrmDependency(model);
+    console.log(deps.viewUsage);
 }
 
 function isUniformPrimitive(model) {
