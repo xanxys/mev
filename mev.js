@@ -132,8 +132,10 @@ class MevApplication {
                     console.log("vrmRoot.watch");
                     if (newValue !== oldValue || newValue.version !== oldValue.version) {
                         console.log("Updating vrmRoot");
+                        // depends on VrmRenderer
                         this._applyEmotion();
                         this._computeAvatarHeight();
+                        // just slow
                         this._calculateFinalSizeAsync();
                         app.heightIndicator.setHeight(this.avatarHeight);
                         app.heightIndicator.setVisible(true);
@@ -177,7 +179,16 @@ class MevApplication {
                     });
                 },
                 reduceVrm: function (event) {
-                    reduceVrm(this.vrmRoot).then(_ => this.updateVrm(this.vrmRoot));
+                    reduceVrm(this.vrmRoot).then(_ => {
+                        this.updateVrm(this.vrmRoot);
+                        // depends on VrmRenderer
+                        // this._applyEmotion(); // doesn't work for some reason
+                        // this._computeAvatarHeight(); // // doesn't work for some reason
+                        // just slow
+                        this._calculateFinalSizeAsync();
+                        //app.heightIndicator.setHeight(this.avatarHeight);
+                        //app.heightIndicator.setVisible(true);
+                    });
                 },
                 showDetails: function (event) {
                     setupDetailsDialog(this.vrmRoot);
@@ -188,7 +199,7 @@ class MevApplication {
                 _computeAvatarHeight: function () {
                     // For some reason, according to profiler,
                     // this method is computed every frame unlike others (e.g. finalVrmTris, blendshapes, parts).
-                    // Maybe because this is using this.vrmRoot directly, and some filed in vrmRoot is changing every frame?
+                    // Maybe because this is using this.vrmRoot directly, and some field in vrmRoot is changing every frame?
                     if (this.vrmRoot === null) {
                         return 0;
                     }
