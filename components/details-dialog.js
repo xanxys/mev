@@ -1,38 +1,35 @@
 // ES6
 import { VrmDependency } from '../vrm-core/deps.js';
 
-let firstTime = true;
+let detailsDialog = null;
 
 export function setupDetailsDialog(vrmModel) {
     document.getElementById("vue_details_dialog").style.display = "block";
-    if (!firstTime) {
-        return;
+
+    if (detailsDialog === null) {
+        detailsDialog = new Vue({
+            el: "#vue_details_dialog",                    
+            data: {
+                currentTab: "BUFFER",
+                detailsText: "",
+                morphDetails: "",
+                boneDetails: "",
+            },
+            methods: {
+                clickTab: function(tab) {
+                    this.currentTab = tab;
+                },
+                clickCloseButton: function() {
+                    document.getElementById("vue_details_dialog").style.display = "none";
+                },
+                updateDetails: function(vrmModel) {
+                    this.detailsText = prettyPrintVrmSizeDetails(vrmModel);
+                    this.morphDetails = prettyPrintMorphDetails(vrmModel);
+                },
+            }
+        });
     }
-
-    const start_dialog = new Vue({
-        el: "#vue_details_dialog",
-        data: {
-            currentTab: "BUFFER",
-            detailsText: "",
-            morphDetails: "",
-            boneDetails: "",
-        },
-        methods: {
-            clickTab: function(tab) {
-                this.currentTab = tab;
-            },
-            clickCloseButton: function() {
-                document.getElementById("vue_details_dialog").style.display = "none";
-            },
-            updateDetails: function(vrmModel) {
-                this.detailsText = prettyPrintVrmSizeDetails(vrmModel);
-                this.morphDetails = prettyPrintMorphDetails(vrmModel);
-            },
-        }
-    });
-    firstTime = false;
-
-    start_dialog.updateDetails(vrmModel);
+    detailsDialog.updateDetails(vrmModel);
 }
 
 /**
