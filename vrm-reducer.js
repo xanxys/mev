@@ -18,10 +18,14 @@ export async function reduceVrm(model) {
     //// misc
     // float-quantization
 
+    
+    await extremeResizeTexture(model, 128);
+
     // await removeAllBlendshapes(model);
     await removeUnusedMorphs(model);
-    await extremeResizeTexture(model, 128);
+    await removeUnusedAccessors(model);
     await removeUnusedBufferViews(model);
+    model.repackBuffer();
     return null;
 }
 
@@ -116,9 +120,89 @@ async function removeUnusedMorphs(model) {
 /**
  * @returns {Promise<null>}
  */
+async function removeUnusedAccessors(model) {
+    const deps = new VrmDependency(model);
+    const usedIds = deps.getDirectlyUsedAccessors();
+
+    // Execute deletion.
+    const accIdChanges = new Map(); // key=old accId value=new accId
+    let newAccs = [];
+    let newAccId = 0;
+    model.gltf.accessors.forEach((acc, accId) => {
+        if (!usedIds.has(accId)) {
+            return;
+        }
+        accIdChanges.set(accId, newAccId);
+        newAccs.push(acc);
+        newAccId++;
+    });
+    model.gltf.accessors = newAccs;
+    console.log("accessor id changes", accIdChanges);
+
+    // Apply changes.
+    model.gltf.meshes.forEach(mesh => {    
+        mesh.primitives.forEach(prim => {
+            console.assert(accIdChanges.has(prim.indices));
+            prim.indices = accIdChanges.get(prim.indices);
+        
+            const newAttribs = {};
+            Object.entries(prim.attributes).forEach(([attribName, accId]) => {
+                console.assert(accIdChanges.has(accId));
+                newAttribs[attribName] = accIdChanges.get(accId);
+            });
+            prim.attributes = newAttribs;
+
+            if (prim.targets) {
+                prim.targets = prim.targets.map(target => {
+                    const newTarget = {};
+                    Object.entries(target).forEach(([attribName, accId]) => {
+                        console.assert(accIdChanges.has(accId));
+                        newTarget[attribName] = accIdChanges.get(accId);
+                    });
+                    return newTarget;
+                });
+            }
+        });
+    });
+    model.gltf.skins.forEach(skin => {
+        console.assert(accIdChanges.has(skin.inverseBindMatrices));
+        skin.inverseBindMatrices = accIdChanges.get(skin.inverseBindMatrices);
+    });
+}
+
+/**
+ * @returns {Promise<null>}
+ */
 async function removeUnusedBufferViews(model) {
     const deps = new VrmDependency(model);
-    console.log(deps.viewUsage);
+    const usedIds = deps.getUsedBufferViewIds();
+
+    // Execute deletion.
+    const viewIdChanges = new Map(); // key=old viewid value=new viewid
+    let newViews = [];
+    let newViewId = 0;
+    model.gltf.bufferViews.forEach((view, viewId) => {
+        if (!usedIds.has(viewId)) {
+            return;
+        }
+        viewIdChanges.set(viewId, newViewId);
+        newViews.push(view);
+        newViewId++;
+    });
+    model.gltf.bufferViews = newViews;
+    console.log("bufferView id changes", viewIdChanges);
+
+    // Apply changes.
+    model.gltf.images.forEach(img => {
+        const oldViewId = img.bufferView;
+        console.assert(viewIdChanges.has(oldViewId));
+        img.bufferView = viewIdChanges.get(oldViewId);
+    });
+    model.gltf.accessors.forEach(accessor => {
+        const oldViewId = accessor.bufferView;
+        console.assert(viewIdChanges.has(oldViewId));
+        accessor.bufferView = viewIdChanges.get(oldViewId);
+    });
 }
 
 function isUniformPrimitive(model) {

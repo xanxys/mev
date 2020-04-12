@@ -7,6 +7,7 @@ export class VrmDependency {
      */
     constructor(vrmModel) {
         const textureUsage = new Map();
+        // ROOT
         if (vrmModel.gltf.extensions.VRM.meta && vrmModel.gltf.extensions.VRM.meta.texture !== undefined) {
             multimapAdd(textureUsage, vrmModel.gltf.extensions.VRM.meta.texture, "VRM-thumbnail");
         }
@@ -88,6 +89,7 @@ export class VrmDependency {
         vrmModel.gltf.skins.forEach((skin, skinId) => {
             multimapAdd(accessorUsage, skin.inverseBindMatrices, `skin(${skin.name}).bindMatrix`);
         });
+        this.accessorUsage = accessorUsage;
         console.log("accessor", accessorUsage);
     
         const viewUsage = new Map();
@@ -111,6 +113,28 @@ export class VrmDependency {
         });
         console.log("view", viewUsage);
         this.viewUsage = viewUsage;
+    }
+
+    getDirectlyUsedAccessors() {
+        return new Set(this.accessorUsage.keys());
+    }
+
+    /**
+     * @returns {Set<number>}
+     */
+    getUsedBufferViewIds() {
+        const result = new Set();
+        for (let [viewId, usages] of this.viewUsage) {
+            if (usages.length == 0) {
+                continue;
+            }
+            // TODO: Do root-check more reliably.
+            if (usages.length == 1 && usages[0].endsWith("(not referenced)")) {
+                continue;
+            }
+            result.add(viewId);
+        }
+        return result;
     }
 }
 
