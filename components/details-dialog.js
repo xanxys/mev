@@ -12,11 +12,15 @@ export function setupDetailsDialog(vrmModel) {
     const start_dialog = new Vue({
         el: "#vue_details_dialog",
         data: {
+            currentTab: "BUFFER",
             detailsText: "",
             morphDetails: "",
             boneDetails: "",
         },
         methods: {
+            clickTab: function(tab) {
+                this.currentTab = tab;
+            },
             clickCloseButton: function() {
                 document.getElementById("vue_details_dialog").style.display = "none";
             },
@@ -55,8 +59,6 @@ function prettyPrintVrmSizeDetails(vrmModel) {
             details += "      (not referenced)\n";
         }
     });
-
-    details += vrmModel.countTotalTris().toLocaleString("en-US") + "tris";
 
     return details;
 }

@@ -43,9 +43,18 @@
       </button>
     </section>
 
-    <pre style="overflow:scroll; height: 800px">{{detailsText}}
-{{morphDetails}}
-{{boneDetails}}</pre>
+    <div style="padding: 8px">
+      <span class="chip-button"
+        :class="{'chip-button-active': currentTab == 'BUFFER'}"
+        @click="clickTab('BUFFER')">Buffer</span>
+      <span class="chip-button"
+        :class="{'chip-button-active': currentTab == 'BLENDSHAPE'}"
+        @click="clickTab('BLENDSHAPE')">Blendshape</span>
+    </div>
+
+    <pre v-if="currentTab == 'BUFFER'" style="overflow:scroll; height: 800px">{{detailsText}}</pre>
+    <pre v-if="currentTab == 'BLENDSHAPE'" style="overflow:scroll; height: 800px">{{morphDetails}}</pre>
+    <pre v-if="currentTab == 'BONES'" style="overflow:scroll; height: 800px">{{boneDetails}}</pre>
   </div>
 
   <div style="position: absolute; left:8px; top: 8px; width: 240px; display: none" id="vue_menu">
