@@ -39,45 +39,6 @@ const EMOTION_PRESET_NAME_TO_LABEL = {
     "lookdown": "目↓",
 };
 
-/**
- * Load FBX and try to convert to proper VRM (ideally, same as loadVrm but currently conversion is very broken)
- * @param {ArrayBuffer} fileContent 
- * @return {Promise<THREE.Object3D>} vrmRoot
- */
-function importFbxAsVrm(fileContent) {
-    return new Promise((resolve, reject) => {
-        const fbxLoader = new THREE.FBXLoader();
-        fbxLoader.load(
-            fileContent,
-            fbx => {
-                console.log("FBX loaded", fbx);
-                const bb_size = new THREE.Box3().setFromObject(fbx).getSize();
-                const max_len = Math.max(bb_size.x, bb_size.y, bb_size.z);
-                // heuristics: Try to fit in 0.1m~9.9m. (=log10(max_len * K) should be 0.XXX)
-                // const scale_factor = Math.pow(10, -Math.floor(Math.log10(max_len)));
-                //console.log("FBX:size_estimator: max_len=", max_len, "scale_factor=", scale_factor);
-                const scale_factor = 0.01;
-                fbx.scale.set(scale_factor, scale_factor, scale_factor);
-                fbx.rotateOnWorldAxis(new THREE.Vector3(0, 1, 0), Math.PI);
-
-                // Fix-up materials
-                fbx.traverse(obj => {
-                    if (obj.type === 'SkinnedMesh' || obj.type === 'Mesh') {
-                        console.log("FBX-Fix-Material", obj.material);
-                        if (obj.material instanceof Array) {
-                            obj.material = obj.material.map(m => new THREE.MeshLambertMaterial());
-                        } else {
-                            obj.material = new THREE.MeshLambertMaterial();
-                        }
-                    }
-                });
-                console.log("FBX-tree", objectToTreeDebug(fbx));
-                resolve(fbx);
-            }
-        );
-    });
-}
-
 const PANE_MODE = {
     DEFAULT: 0,
     EMOTION: 1,
@@ -442,9 +403,6 @@ class MevApplication {
         requestAnimationFrame(() => this.animate());
     }
 
-    // It's very clear now that we need somewhat complex FBX -> VRM converter (even some UI to resolve ambiguity).
-    // For now, assume FBX load show some object in the scene (sometimes) but UI functionality is broken because
-    // its vrmRoot object lack VRM structure.
     loadFbxOrVrm(vrmFile) {
         const isFbx = vrmFile.name.toLowerCase().endsWith('.fbx');
         this.vm.startedLoading = true;
