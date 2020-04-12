@@ -20,6 +20,7 @@ export async function reduceVrm(model) {
     // await removeAllBlendshapes(model);
     await removeUnusedMorphs(model);
     await extremeResizeTexture(model, 128);
+    await removeUnusedBufferViews(model);
     return null;
 }
 
@@ -82,7 +83,7 @@ async function removeUnusedMorphs(model) {
             if (!usedMeshIdMorphIdPairs.has(key)) {
                 continue;
             }
-            
+
             morphRemap.set(key, newMorphIx);
             mesh.primitives.forEach((prim, primIx) => {
                 newTargets[primIx].push(prim.targets[morphIx]);
@@ -109,6 +110,13 @@ async function removeUnusedMorphs(model) {
             bind.index = morphRemap.get(key);
         });
     });
+}
+
+/**
+ * @returns {Promise<null>}
+ */
+async function removeUnusedBufferViews(model) {
+
 }
 
 function isUniformPrimitive(model) {
