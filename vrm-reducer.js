@@ -5,27 +5,22 @@ import {VrmModel} from "./vrm.js";
  * @param {VrmModel} model: will be mutated
  * @returns {Promise<null>}
  */
-export function reduceVrm(model) {
+export async function reduceVrm(model) {
     //// conditional lossless
-
-    // Remove Blendshape weights
     // Remove non-moving bones & weights
     // Remove nodes
-    // Blendshape group reduction
 
     //// lossy
-
     // mesh merging
     // atlas-ing
     // vertex reduction
-
-    // PNG/JPG re-compress
-
     //// misc
-
     // float-quantization
 
-    return extremeResizeTexture(model, 128);
+    await removeAllBlendshapes(model);
+    await removeUnusedMorphs(model);
+    await extremeResizeTexture(model, 128);
+    return null;
 }
 
 /**
@@ -41,4 +36,17 @@ async function extremeResizeTexture(model, maxTexSizePx) {
         model.setBufferData(bufferViewIx, smallBlob);
     }
     model.repackBuffer();
+}
+
+
+/**
+ * @returns {Promise<null>}
+ */
+async function removeAllBlendshapes(model) {
+}
+
+/**
+ * @returns {Promise<null>}
+ */
+async function removeUnusedMorphs(model) {
 }
