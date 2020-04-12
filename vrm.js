@@ -1,6 +1,15 @@
 // ES6
 import { deserializeGlb, serializeGlb } from './gltf.js';
-import { GLTFLoader, WEBGL_CONSTANTS } from './gltf-three.js';
+
+const PRIMITIVE_MODE = {
+    POINTS: 0,
+    LINES: 1,
+    LINE_LOOP: 2,
+    LINE_STRIP: 3,
+    TRIANGLES: 4,
+    TRIANGLE_STRIP: 5,
+    TRIANGLE_FAN: 6,
+};
 
 /**
  * Mutable representation of a single, whole .vrm data.
@@ -124,7 +133,7 @@ export class VrmModel {
     }
 
     countPrimitiveTris(primitive) {
-        if (primitive.mode === WEBGL_CONSTANTS.TRIANGLES) {
+        if (primitive.mode === PRIMITIVE_MODE.TRIANGLES) {
             const accessor = this.gltf.accessors[primitive.indices];
             return accessor.count / 3;
         }
