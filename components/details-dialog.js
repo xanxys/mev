@@ -27,11 +27,28 @@ export function setupDetailsDialog(vrmModel) {
             },
             updateDetails: function(vrmModel) {
                 const textureUsage = new Map();
-                vrmModel.gltf.materials.forEach(mat => {
+                vrmModel.gltf.materials.forEach((mat, matId) => {
                     const matName = `mat(${mat.name})`;
+
+                    const matProps = vrmModel.gltf.extensions.VRM.materialProperties;
+                    if (matProps && matId < matProps.length) {
+                        if (matProps[matId].textureProperties._ShadeTexture !== undefined) {
+                            multimapAdd(
+                                textureUsage, matProps[matId].textureProperties._ShadeTexture,
+                                `${matName}.shade`);
+                        }
+                    }
+
                     if (mat.pbrMetallicRoughness && mat.pbrMetallicRoughness.baseColorTexture) {
                         const texId = mat.pbrMetallicRoughness.baseColorTexture.index;
-                        multimapAdd(textureUsage, texId, `${matName}.baseColor`);
+                        multimapAdd(textureUsage, texId, `${matName}.base`);
+                    }
+                    if (mat.pbrMetallicRoughness && mat.pbrMetallicRoughness.metallicRoughnessTexture) {
+                        const texId = mat.pbrMetallicRoughness.metallicRoughnessTexture.index;
+                        multimapAdd(textureUsage, texId, `${matName}.roughness`);
+                    }
+                    if (mat.emissiveTexture) {
+                        multimapAdd(textureUsage, mat.emissiveTexture.index, `${matName}.emission`);
                     }
                 });
                 console.log("texture", textureUsage);
