@@ -44,7 +44,6 @@ export class VrmDependency {
             }
         });
         this.textureUsage = textureUsage;
-        console.log("texture", textureUsage);
     
         const imageUsage = new Map();
         vrmModel.gltf.textures.forEach((tex, texId) => {
@@ -58,7 +57,6 @@ export class VrmDependency {
             }
         });
         this.imageUsage = imageUsage;
-        console.log("image", imageUsage);
     
         const accessorUsage = new Map();
         vrmModel.gltf.meshes.forEach((mesh, meshId) => {
@@ -101,7 +99,6 @@ export class VrmDependency {
             multimapAdd(accessorUsage, skin.inverseBindMatrices, `skin(${skin.name}).bindMatrix`);
         });
         this.accessorUsage = accessorUsage;
-        console.log("accessor", accessorUsage);
     
         const viewUsage = new Map();
         vrmModel.gltf.images.forEach((img, imgId) => {
@@ -130,7 +127,6 @@ export class VrmDependency {
                 multimapAdd(viewUsage, viewId, `${accRef} (not referenced)`);
             }
         });
-        console.log("view", viewUsage);
         this.viewUsage = viewUsage;
     }
 

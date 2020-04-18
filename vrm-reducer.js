@@ -52,11 +52,105 @@ async function extremeResizeTexture(model, maxTexSizePx) {
 
 async function deleteNonEssentialBones(model) {
     model.gltf.extensions.VRM.secondaryAnimation.boneGroups = [];
+    model.gltf.extensions.VRM.secondaryAnimation.colliderGroups = [];
+
+    // Merge weights
+    const lockedNodes = new Set(); // nodeIx
+    model.gltf.nodes.forEach((node, nodeIx) => {
+        if (node.skin !== undefined || node.mesh !== undefined) {
+            lockedNodes.add(nodeIx);
+        }
+        // just in case, keep "secondary" special node to prevent UniVRM from crashing
+        if (node.name === "secondary") {
+            lockedNodes.add(nodeIx);
+        }
+    });
+    model.gltf.scenes.forEach(scene => {
+        scene.nodes.forEach(nodeIx => {
+            lockedNodes.add(nodeIx);
+        });
+    });
+    if (model.gltf.extensions.VRM.firstPerson !== undefined) {
+        lockedNodes.add(model.gltf.extensions.VRM.firstPerson.firstPersonBone);
+    }
+    model.gltf.extensions.VRM.humanoid.humanBones.forEach(hb => {
+        lockedNodes.add(hb.node);
+    });
+    model.gltf.skins.forEach(skin => {
+        if (skin.skeleton !== undefined) {
+            lockedNodes.add(skin.skeleton);
+        }
+    });
+
+    const parents = new Map(); // key:nodeIx, val:parent nodeIx | roots wont't be included
+    model.gltf.nodes.forEach((node, nodeIx) => {
+        if (node.children === undefined) {
+            return;
+        }
+        node.children.forEach(cnIx => {
+            console.assert(!parents.has(cnIx)); // if this happens, node graph is not a tree
+            parents.set(cnIx, nodeIx);
+        });
+    });
+
+    // Node N is "free" = (n is not locked) & (n's children are free)
+    const freeNodes = new Set(); // nodeIx
+    // returns: is nodeIx free
+    function indexFreeNodes(nodeIx) {
+        const node = model.gltf.nodes[nodeIx];
+
+        const selfIsFree = !lockedNodes.has(nodeIx);
+        const childrenAreFree = (node.children || []).map(indexFreeNodes).every(x => x);
+
+        const isFree= selfIsFree & childrenAreFree;
+        if (isFree) {
+            freeNodes.add(nodeIx);
+        }
+        return isFree;
+    }
+    model.gltf.scenes.forEach(scene => {
+        scene.nodes.forEach(nodeIx => {
+            indexFreeNodes(nodeIx);
+        });
+    });
+    const weightMergePlan = new Map(); // key:src nodeIx, val:dst nodeIx
+    function findFirstNonFree(nodeIx) {
+        if (!freeNodes.has(nodeIx)) {
+            return nodeIx;
+        }
+
+        console.assert(parents.has(nodeIx));
+        if (weightMergePlan.has(nodeIx)) {
+            return weightMergePlan.get(nodeIx);
+        }
+        return findFirstNonFree(parents.get(nodeIx));
+    }
+    freeNodes.forEach(nodeIx => {
+        const nonFree = findFirstNonFree(nodeIx);
+        weightMergePlan.set(nodeIx, nonFree);
+    });
+    function nodeIxToName(ix) {
+        const node = model.gltf.nodes[ix];
+        return `${ix}:${node.name || ""}`;
+    }
+    console.log("Node weight merge plan",
+        new Map(new Array(...weightMergePlan.entries()).map(([k,v]) => [nodeIxToName(k), nodeIxToName(v)])));
+    mergeWeights(model, weightMergePlan);
 
     // TODO:
-    // Remove node, joint, bindMatrix, weight
+    // Remove nodes
 
     model.version += 1;
+}
+
+/**
+ * Move weights according to nodeMap. Nodes won't be deleted or re-indexed.
+ * Joints will be re-generated to drop 0-weight nodes.
+ * @param {VrmModel} model 
+ * @param {Map<number, number>} nodeMap: key:src node id / val:dst node id
+ * @returns {Promise<null>}
+ */
+async function mergeWeights(model, nodeMap) {
 }
 
 /**
