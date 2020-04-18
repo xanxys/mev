@@ -1,5 +1,7 @@
 // ES6
-import { VrmModel, VrmRenderer } from './vrm.js';
+import { VrmModel } from './vrm-core/vrm.js';
+import { VrmRenderer } from './vrm-renderer.js';
+import { reduceVrm } from './vrm-reducer.js';
 import { setupStartDialog } from './components/start-dialog.js';
 import { setupDetailsDialog } from './components/details-dialog.js';
 import { } from './components/menu-section-emotion.js';
@@ -37,45 +39,6 @@ const EMOTION_PRESET_NAME_TO_LABEL = {
     "lookup": "目↑",
     "lookdown": "目↓",
 };
-
-/**
- * Load FBX and try to convert to proper VRM (ideally, same as loadVrm but currently conversion is very broken)
- * @param {ArrayBuffer} fileContent 
- * @return {Promise<THREE.Object3D>} vrmRoot
- */
-function importFbxAsVrm(fileContent) {
-    return new Promise((resolve, reject) => {
-        const fbxLoader = new THREE.FBXLoader();
-        fbxLoader.load(
-            fileContent,
-            fbx => {
-                console.log("FBX loaded", fbx);
-                const bb_size = new THREE.Box3().setFromObject(fbx).getSize();
-                const max_len = Math.max(bb_size.x, bb_size.y, bb_size.z);
-                // heuristics: Try to fit in 0.1m~9.9m. (=log10(max_len * K) should be 0.XXX)
-                // const scale_factor = Math.pow(10, -Math.floor(Math.log10(max_len)));
-                //console.log("FBX:size_estimator: max_len=", max_len, "scale_factor=", scale_factor);
-                const scale_factor = 0.01;
-                fbx.scale.set(scale_factor, scale_factor, scale_factor);
-                fbx.rotateOnWorldAxis(new THREE.Vector3(0, 1, 0), Math.PI);
-
-                // Fix-up materials
-                fbx.traverse(obj => {
-                    if (obj.type === 'SkinnedMesh' || obj.type === 'Mesh') {
-                        console.log("FBX-Fix-Material", obj.material);
-                        if (obj.material instanceof Array) {
-                            obj.material = obj.material.map(m => new THREE.MeshLambertMaterial());
-                        } else {
-                            obj.material = new THREE.MeshLambertMaterial();
-                        }
-                    }
-                });
-                console.log("FBX-tree", objectToTreeDebug(fbx));
-                resolve(fbx);
-            }
-        );
-    });
-}
 
 const PANE_MODE = {
     DEFAULT: 0,
@@ -149,6 +112,7 @@ class MevApplication {
             el: '#vue_menu',
             data: {
                 // Global
+                isDev: (window.location.hostname === "127.0.0.1" && !window.location.href.endsWith("?prd")),
                 startedLoading: false,
                 vrmRoot: null, // VrmModel
 
@@ -170,8 +134,10 @@ class MevApplication {
                     console.log("vrmRoot.watch");
                     if (newValue !== oldValue || newValue.version !== oldValue.version) {
                         console.log("Updating vrmRoot");
+                        // depends on VrmRenderer
                         this._applyEmotion();
                         this._computeAvatarHeight();
+                        // just slow
                         this._calculateFinalSizeAsync();
                         app.heightIndicator.setHeight(this.avatarHeight);
                         app.heightIndicator.setVisible(true);
@@ -214,6 +180,18 @@ class MevApplication {
                         saveAs(new Blob([buffer], { type: "application/octet-stream" }), "test.vrm");
                     });
                 },
+                reduceVrm: function (event) {
+                    reduceVrm(this.vrmRoot).then(_ => {
+                        this.updateVrm(this.vrmRoot);
+                        // depends on VrmRenderer
+                        // this._applyEmotion(); // doesn't work for some reason
+                        // this._computeAvatarHeight(); // // doesn't work for some reason
+                        // just slow
+                        this._calculateFinalSizeAsync();
+                        //app.heightIndicator.setHeight(this.avatarHeight);
+                        //app.heightIndicator.setVisible(true);
+                    });
+                },
                 showDetails: function (event) {
                     setupDetailsDialog(this.vrmRoot);
                 },
@@ -223,7 +201,7 @@ class MevApplication {
                 _computeAvatarHeight: function () {
                     // For some reason, according to profiler,
                     // this method is computed every frame unlike others (e.g. finalVrmTris, blendshapes, parts).
-                    // Maybe because this is using this.vrmRoot directly, and some filed in vrmRoot is changing every frame?
+                    // Maybe because this is using this.vrmRoot directly, and some field in vrmRoot is changing every frame?
                     if (this.vrmRoot === null) {
                         return 0;
                     }
@@ -438,9 +416,6 @@ class MevApplication {
         requestAnimationFrame(() => this.animate());
     }
 
-    // It's very clear now that we need somewhat complex FBX -> VRM converter (even some UI to resolve ambiguity).
-    // For now, assume FBX load show some object in the scene (sometimes) but UI functionality is broken because
-    // its vrmRoot object lack VRM structure.
     loadFbxOrVrm(vrmFile) {
         const isFbx = vrmFile.name.toLowerCase().endsWith('.fbx');
         this.vm.startedLoading = true;

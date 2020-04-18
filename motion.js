@@ -1,4 +1,5 @@
-import { VrmModel, VrmRenderer } from './vrm.js';
+import { VrmModel } from './vrm-core/vrm.js';
+import { VrmRenderer } from './vrm-renderer.js';
 
 /**
  * Player of motion capture data.
