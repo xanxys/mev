@@ -108,11 +108,17 @@ function prettyPrintMorphDetails(vrmModel) {
 function prettyPrintBoneDetails(vrmModel) {
     console.log("m", vrmModel);
 
+    const humanBones = new Map(); // key:nodeIx, val:nodeName
+    vrmModel.gltf.extensions.VRM.humanoid.humanBones.forEach(hb => {
+        humanBones.set(hb.node, hb.bone);
+    });
+
     let details = "";
     function dumpNode(nodeIx, indent) {
         const node = vrmModel.gltf.nodes[nodeIx];
         const nodeName = (node.name || "node") + `(${nodeIx})`;
-        details += `${indent}${nodeName}\n`;
+        const status = humanBones.has(nodeIx) ? `[${humanBones.get(nodeIx)}]` : "";
+        details += `${indent}${nodeName} ${status}\n`;
         if (node.children) {
             node.children.forEach(n => dumpNode(n, indent + " "));
         }
