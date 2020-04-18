@@ -120,12 +120,19 @@ function prettyPrintBoneDetails(vrmModel) {
             secAnimBones.set(boneIx, bgName);
         });
     });
+    vrmModel.gltf.extensions.VRM.secondaryAnimation.colliderGroups.forEach((colg, colgIx) => {
+        const colgName = `colliders(${colgIx})`;
+        secAnimBones.set(colg.node, colgName);
+    });
 
     let details = "";
     function dumpNode(nodeIx, indent) {
         const node = vrmModel.gltf.nodes[nodeIx];
         const nodeName = (node.name || "node") + `(${nodeIx})`;
         const status = 
+            (node.skin !== undefined ? "skin" : "") +
+            (node.mesh !== undefined ? "mesh" : "") +
+            (nodeIx === vrmModel.gltf.extensions.VRM.firstPerson.firstPersonBone ? "[firstperson]" : "") +
             (humanBones.has(nodeIx) ? `[${humanBones.get(nodeIx)}]` : "") +
             (secAnimBones.has(nodeIx) ? `[${secAnimBones.get(nodeIx)}]` : "");
         details += `${indent}${nodeName} ${status}\n`;

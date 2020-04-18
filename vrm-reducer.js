@@ -51,7 +51,12 @@ async function extremeResizeTexture(model, maxTexSizePx) {
 }
 
 async function deleteNonEssentialBones(model) {
-    
+    model.gltf.extensions.VRM.secondaryAnimation.boneGroups = [];
+
+    // TODO:
+    // Remove node, joint, bindMatrix, weight
+
+    model.version += 1;
 }
 
 /**
