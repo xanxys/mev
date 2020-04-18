@@ -1,6 +1,16 @@
 // ES6
 import { VrmModel } from './vrm.js';
 
+const TYPE_RMAP = {
+    5120: "i8",
+    5121: "u8",
+    5122: "i16",
+    5123: "u16",
+    5124: "i32", // not allowed in glTF
+    5125: "u32",
+    5126: "f32",
+};
+
 export class VrmDependency {
     /**
      * @param {VrmModel} vrmModel
@@ -105,7 +115,15 @@ export class VrmDependency {
         });
         vrmModel.gltf.accessors.forEach((accessor, accId) => {
             const viewId = accessor.bufferView;
-            const accRef = `accessor(${accessor.type},${accessor.byteOffset})`;
+            
+            const accAttribs = [];
+            accAttribs.push(`${accessor.type}<${TYPE_RMAP[accessor.componentType]}>`);
+            accAttribs.push(`len:${accessor.count}`);
+            if (accessor.byteOffset !== 0) {
+                accAttribs.push(`ofs:${accessor.byteOffset}`);
+            }
+            const accRef = `accessor(${accAttribs.join(",")})`;
+
             if (accessorUsage.has(accId)) {
                 multimapAdd(viewUsage, viewId, ...accessorUsage.get(accId).map(usage => `${accRef} as ${usage}`));
             } else {
