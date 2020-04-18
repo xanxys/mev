@@ -7,24 +7,21 @@ import { VrmDependency } from "./vrm-core/deps.js";
  * @returns {Promise<null>}
  */
 export async function reduceVrm(model) {
-    //// conditional lossless
+    // TODO:
+    // merging multiple blendshapes in a blendshape group
     // Remove non-moving bones & weights
     // Remove nodes
-
-    //// lossy
     // mesh merging
     // atlas-ing
     // vertex reduction
-    //// misc
     // float-quantization
 
     await extremeResizeTexture(model, 128);
-
-    // await removeAllBlendshapes(model);
-    // TODO: blendshape group collapsing
+    await stripAllEmotions(model);
     await removeUnusedMorphs(model);
     await removeUnusedAccessors(model);
     await removeUnusedBufferViews(model);
+    // await removeAllNames(model);
     model.repackBuffer();
     return null;
 }
@@ -46,10 +43,42 @@ async function extremeResizeTexture(model, maxTexSizePx) {
 
 
 /**
+ * Delete all blendshape groups.
  * @returns {Promise<null>}
  */
-async function removeAllBlendshapes(model) {
+async function stripAllEmotions(model) {
     model.gltf.extensions.VRM.blendShapeMaster.blendShapeGroups = [];
+    model.version += 1;
+}
+
+/**
+ * Strip all label/names for human.
+ * @returns {Promise<null>}
+ */
+async function removeAllNames(model) {
+    model.gltf.images.forEach((image, imageIx) => {
+        delete image.name;
+    });
+
+    // me/v renderer somehow depends on material name constancy.
+    // renaming like m1, m2 also doesn't work.
+    /*
+    model.gltf.materials.forEach((mat, matIx) => {
+        mat.name = `m${matIx}`;
+    });
+    */
+    
+    model.gltf.meshes.forEach(mesh => {
+        delete mesh.name;
+        mesh.primitives.forEach(prim => {
+            if (prim.extras && prim.extras.targetNames) {
+                delete prim.extras.targetNames;
+            }
+        });
+    });
+    model.gltf.nodes.forEach(node => {
+        delete node.name;
+    });
     model.version += 1;
 }
 
