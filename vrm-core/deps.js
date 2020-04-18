@@ -1,7 +1,7 @@
 // ES6
 import { VrmModel } from './vrm.js';
 
-const TYPE_RMAP = {
+export const TYPE_RMAP = {
     5120: "i8",
     5121: "u8",
     5122: "i16",

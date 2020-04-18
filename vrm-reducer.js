@@ -1,6 +1,6 @@
 // ES6
 import { VrmModel } from "./vrm-core/vrm.js";
-import { VrmDependency } from "./vrm-core/deps.js";
+import { VrmDependency, TYPE_RMAP } from "./vrm-core/deps.js";
 
 /**
  * @param {VrmModel} model: will be mutated
@@ -9,7 +9,6 @@ import { VrmDependency } from "./vrm-core/deps.js";
 export async function reduceVrm(model) {
     // TODO:
     // merging multiple blendshapes in a blendshape group
-    // Remove non-moving bones & weights
     // Remove nodes
     // mesh merging
     // atlas-ing
@@ -151,7 +150,209 @@ async function deleteNonEssentialBones(model) {
  * @returns {Promise<null>}
  */
 async function mergeWeights(model, nodeMap) {
+    model.gltf.nodes.forEach(node => {
+        if (node.skin === undefined) {
+            return;
+        }
+
+        const mesh = model.gltf.meshes[node.mesh];
+        const skin = model.gltf.skins[node.skin];
+        console.log("mW", mesh, skin);
+
+        const jointIxTransfer = new Map();
+        const jointIxMove = new Map();
+        const newJoints = [];
+        let newJointIx = 0;
+        skin.joints.forEach((nodeIx, jointIx) => {
+            if (nodeMap.has(nodeIx)) {
+                jointIxTransfer.set(jointIx, nodeMap.get(nodeIx));
+            } else {
+                jointIxMove.set(jointIx, newJointIx);
+                newJoints.push(nodeIx);
+                newJointIx++;
+            }
+        });
+        if (jointIxTransfer.length === 0 && jointIxMove.length === 0) {
+            return;
+        }
+        console.log("Joint migration", "move", jointIxMove, "trans", jointIxTransfer);
+        // Exec migration.
+        /*
+        remapJointMatrices(model, skin.inverseBindMatrices, newJoints.length, jointIxMove);
+        
+        mesh.primitives.forEach(
+            prim => remapWeights(model, prim.attributes.JOINTS_0, prim.attributes.WEIGHTS_0, jointIxMove, jointIxTransfer));
+        
+        skin.joints = newJoints;
+        */
+    });
 }
+
+
+const TYPE_BYTES = {
+    5120: 1,
+    5121: 1,
+    5122: 2,
+    5123: 2,
+    5124: 4, // not allowed in glTF
+    5125: 4,
+    5126: 4,
+};
+
+/**
+ * rapackBuffer must be called. Otherwise, unused buffer will remain allocated.
+ * 
+ * @param {VrmModel} model to be mutated
+ * @param {number} accId inverseBindMatrices accessor id
+ * @param {number} newNumJoints
+ * @param {Map<number, number>} jointIdMap 
+ */
+function remapJointMatrices(model, accId, newNumJoints, jointIdMap) {
+    const matricesAcc = model.gltf.accessors[accId];
+    console.assert(matricesAcc.type === "MAT4");
+    const blockSize = TYPE_BYTES[matricesAcc.componentType] * 16;
+
+    const buffer = model._getBufferView(matricesAcc.bufferView);
+    console.assert(buffer.byteLength === blockSize * matricesAcc.count);
+    const newBuffer = new ArrayBuffer(newNumJoints * blockSize);
+
+    const oldView = new Uint8Array(buffer);
+    const newView = new Uint8Array(newBuffer);
+    for (let i = 0; i < matricesAcc.count; i++) {
+        if (!jointIdMap.has(i)) {
+            continue;
+        }
+        const newIx = jointIdMap.get(i);
+        newView.set(oldView.slice(i * blockSize, (i + 1) * blockSize), newIx * blockSize);
+    }
+
+    model.setBufferData(matricesAcc.bufferView, newBuffer);
+}
+
+/**
+ * rapackBuffer must be called. Otherwise, unused buffer will remain allocated.
+ * 
+ * @param {VrmModel} model to be mutated
+ * @param {number} jointAccId JOINTS_0 accessor id
+ * @param {number} weightAccId WEIGHTS_0 accessor ID
+ * @param {Map<number, number>} jointIxMove: dst<-src
+ * @param {Map<number, number>} jointIxTransfer: dst+=src; src=0;
+ */
+function remapWeights(model, jointAccId, weightAccId, jointIxMove, jointIxTransfer) {
+    // Joint buffer accessor
+    const jointAcc = model.gltf.accessors[jointAccId];
+    console.assert(jointAcc.type === "VEC4");
+    const jElemType = TYPE_RMAP[jointAcc.componentType];
+    const jElemSize = TYPE_BYTES[jointAcc.componentType];
+    const jVecSize = jElemSize * 4;
+
+    const jBuffer = model._getBufferView(jointAcc.bufferView);
+    const newJBuffer = new ArrayBuffer(jBuffer.byteLength);
+    const jView = new DataView(jBuffer);
+    const newJView = new DataView(newJBuffer);
+    
+    function getJElem(vertIx, elemIx) {
+        const ofs = vertIx * jVecSize + elemIx * jElemSize;
+        if (jElemType === "u8") {
+            return jView.getUint8(ofs);
+        } else if (jElemType === "u16") {
+            return jView.getUint16(ofs, true);
+        }
+    }
+    function setJElem(vertIx, elemIx, val) {
+        const ofs = vertIx * jVecSize + elemIx * jElemSize;
+        if (jElemType === "u8") {
+            return newJView.setUint8(ofs, val);
+        } else if (jElemType === "u16") {
+            return newJView.setUint16(ofs, val, true);
+        }
+    }
+
+    // Weight buffer accessor
+    const weightAcc = model.gltf.accessors[weightAccId];
+    console.assert(jointAcc.type === "VEC4");
+    const wElemType = TYPE_RMAP[weightAcc.componentType];
+    const wElemSize = TYPE_BYTES[weightAcc.componentType];
+    const wVecSize = wElemSize * 4;
+
+    const wBuffer = model._getBufferView(weightAcc.bufferView);
+    const newWBuffer = new ArrayBuffer(wBuffer.byteLength);
+    const wView = new DataView(wBuffer);
+    const newWView = new DataView(newWBuffer);
+    
+    function getWElem(vertIx, elemIx) {
+        const ofs = vertIx * wVecSize + elemIx * wElemSize;
+        if (wElemType === "u8") {
+            return wView.getUint8(ofs) / 255.0;
+        } else if (wElemType === "u16") {
+            return wView.getUint16(ofs, true) / 65535.0;
+        } else if (wElemType === "f32") {
+            return wView.getFloat32(ofs, true);
+        }
+    }
+    function setWElem(vertIx, elemIx, val) {
+        const ofs = vertIx * wVecSize + elemIx * wElemSize;
+        if (val < 0) val = 0;
+        if (val > 1) val = 1;
+        if (wElemType === "u8") {
+            return newWView.setUint8(ofs, Math.round(val * 255.0));
+        } else if (wElemType === "u16") {
+            return newWView.setUint16(ofs, Math.round(val * 65535.0), true);
+        } else if (wElemType === "f32") {
+            return newWView.setFloat32(ofs, val, true);
+        }
+    }
+
+    console.assert(jointAcc.count === weightAcc.count);
+    const numVertex = jointAcc.count;
+
+    for (let vertIx = 0; vertIx < numVertex; vertIx++) {
+        const oldJW = new Map();
+        for (let elemIx = 0; elemIx < 4; elemIx++) {
+            const j = getJElem(vertIx, elemIx);
+            const w = getWElem(vertIx, elemIx);
+            if (j !==0 || w !== 0) {
+                oldJW.set(j, w);
+            }
+        }
+
+        const newJW = new Map(); // key:new joint ix, val:new weight
+        for (const [j, w] of oldJW.entries()) {
+            if (jointIxMove.has(j)) {
+                const nj = jointIxMove.get(j);
+                console.assert(!newJW.has(nj));
+                newJW.set(nj, w);
+            } else if (jointIxTransfer.has(j)) {
+                const nj = jointIxTransfer.get(j);
+                if (newJW.has(nj)) {
+                    newJW.set(nj, newJW.get(nj) + w);
+                } else {
+                    newJW.set(nj, w);
+                }
+            }
+        }
+        console.assert(oldJW.size >= newJW.size);
+
+        const js = [0, 0, 0, 0];
+        const ws = [0, 0, 0, 0];
+        let njIx = 0;
+        for (const [j, w] of newJW.entries()) {
+            js[njIx] = j;
+            ws[njIx] = w;
+            njIx++;
+        }
+
+        for (let elemIx = 0; elemIx < 4; elemIx++) {
+            setJElem(vertIx, elemIx, js[elemIx]);
+            setWElem(vertIx, elemIx, ws[elemIx]);
+        }
+    }
+    console.log("JBUF", jointAcc.bufferView, jBuffer, newJBuffer);
+    model.setBufferData(jointAcc.bufferView, newJBuffer);
+    console.log("WBUF", weightAcc.bufferView, wBuffer, newWBuffer);
+    model.setBufferData(weightAcc.bufferView, newWBuffer);
+}
+
 
 /**
  * Delete all blendshape groups.
