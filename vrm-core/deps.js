@@ -7,7 +7,6 @@ export class VrmDependency {
      */
     constructor(vrmModel) {
         const textureUsage = new Map();
-        // ROOT
         if (vrmModel.gltf.extensions.VRM.meta && vrmModel.gltf.extensions.VRM.meta.texture !== undefined) {
             multimapAdd(textureUsage, vrmModel.gltf.extensions.VRM.meta.texture, "VRM-thumbnail");
         }
@@ -34,6 +33,7 @@ export class VrmDependency {
                 multimapAdd(textureUsage, mat.emissiveTexture.index, `${matName}.emission`);
             }
         });
+        this.textureUsage = textureUsage;
         console.log("texture", textureUsage);
     
         const imageUsage = new Map();
@@ -47,6 +47,7 @@ export class VrmDependency {
                 multimapAdd(imageUsage, imgId, `${texRef}`);
             }
         });
+        this.imageUsage = imageUsage;
         console.log("image", imageUsage);
     
         const accessorUsage = new Map();
@@ -117,6 +118,18 @@ export class VrmDependency {
 
     getDirectlyUsedAccessors() {
         return new Set(this.accessorUsage.keys());
+    }
+
+    getDirectlyUsedBuffers() {
+        return new Set(this.viewUsage.keys());
+    }
+
+    getDirectlyUsedTextures() {
+        return new Set(this.textureUsage.keys());
+    }
+
+    getDirectlyUsedImages() {
+        return new Set(this.imageUsage.keys());
     }
 
     /**

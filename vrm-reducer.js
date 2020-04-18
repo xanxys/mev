@@ -16,14 +16,22 @@ export async function reduceVrm(model) {
     // vertex reduction
     // float-quantization
 
+    await deleteVrmThumbnail(model);
     await extremeResizeTexture(model, 128);
     await stripAllEmotions(model);
     await removeUnusedMorphs(model);
+    await removeUnusedTextures(model);
+    await removeUnusedImages(model);
     await removeUnusedAccessors(model);
     await removeUnusedBufferViews(model);
     // await removeAllNames(model);
     model.repackBuffer();
     return null;
+}
+
+async function deleteVrmThumbnail(model) {
+    delete model.gltf.extensions.VRM.meta.texture;
+    model.version += 1;
 }
 
 /**
@@ -202,9 +210,89 @@ async function removeUnusedAccessors(model) {
 /**
  * @returns {Promise<null>}
  */
+async function removeUnusedTextures(model) {
+    const deps = new VrmDependency(model);
+    const usedIds = deps.getDirectlyUsedTextures();
+
+    // Execute deletion.
+    const texIdChanges = new Map(); // key=old viewid value=new viewid
+    let newTexs = [];
+    let newTexId = 0;
+    model.gltf.textures.forEach((tex, texId) => {
+        if (!usedIds.has(texId)) {
+            return;
+        }
+        texIdChanges.set(texId, newTexId);
+        newTexs.push(tex);
+        newTexId++;
+    });
+    model.gltf.textures = newTexs;
+    console.log("texture id changes", texIdChanges);
+
+    // Apply changes.
+    if (model.gltf.extensions.VRM.meta && model.gltf.extensions.VRM.meta.texture !== undefined) {
+        console.assert(texIdChanges.has(model.gltf.extensions.VRM.meta.texture));
+        model.gltf.extensions.VRM.meta.texture = texIdChanges.get(model.gltf.extensions.VRM.meta.texture);
+    }
+    model.gltf.materials.forEach((mat, matId) => {
+        const matProps = model.gltf.extensions.VRM.materialProperties;
+        if (matProps && matId < matProps.length) {
+            Object.entries(matProps[matId].textureProperties).forEach(([propName, texId]) => {
+                console.assert(texIdChanges.has(texId));
+                matProps[matId].textureProperties[propName] = texIdChanges.get(texId);
+            });
+        }
+
+        if (mat.pbrMetallicRoughness && mat.pbrMetallicRoughness.baseColorTexture) {
+            const texId = mat.pbrMetallicRoughness.baseColorTexture.index;
+            console.assert(texIdChanges.has(texId));
+            mat.pbrMetallicRoughness.baseColorTexture.index = texIdChanges.get(texId);
+        }
+        if (mat.pbrMetallicRoughness && mat.pbrMetallicRoughness.metallicRoughnessTexture) {
+            const texId = mat.pbrMetallicRoughness.metallicRoughnessTexture.index;
+            console.assert(texIdChanges.has(texId));
+            mat.pbrMetallicRoughness.metallicRoughnessTexture.index = texIdChanges.get(texId);
+        }
+        if (mat.emissiveTexture) {
+            const texId = mat.emissiveTexture.index;
+            console.assert(texIdChanges.has(texId));
+            mat.emissiveTexture.index = texIdChanges.get(texId);
+        }
+    });
+}
+
+async function removeUnusedImages(model) {
+    const deps = new VrmDependency(model);
+    const usedIds = deps.getDirectlyUsedImages();
+
+    // Execute deletion.
+    const imgIdChanges = new Map(); // key=old viewid value=new viewid
+    let newImgs = [];
+    let newImgId = 0;
+    model.gltf.images.forEach((img, imgId) => {
+        if (!usedIds.has(imgId)) {
+            return;
+        }
+        imgIdChanges.set(imgId, newImgId);
+        newImgs.push(img);
+        newImgId++;
+    });
+    model.gltf.images = newImgs;
+    console.log("image id changes", imgIdChanges);
+
+    // Apply changes.
+    model.gltf.textures.forEach((tex, texId) => {
+        console.assert(imgIdChanges.has(tex.source));
+        tex.source = imgIdChanges.get(tex.source);
+    });
+}
+
+/**
+ * @returns {Promise<null>}
+ */
 async function removeUnusedBufferViews(model) {
     const deps = new VrmDependency(model);
-    const usedIds = deps.getUsedBufferViewIds();
+    const usedIds = deps.getDirectlyUsedBuffers();
 
     // Execute deletion.
     const viewIdChanges = new Map(); // key=old viewid value=new viewid
