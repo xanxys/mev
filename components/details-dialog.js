@@ -113,11 +113,21 @@ function prettyPrintBoneDetails(vrmModel) {
         humanBones.set(hb.node, hb.bone);
     });
 
+    const secAnimBones = new Map();
+    vrmModel.gltf.extensions.VRM.secondaryAnimation.boneGroups.forEach((bg, bgIx) => {
+        const bgName = `spring(${bgIx})`;
+        bg.bones.forEach(boneIx => {
+            secAnimBones.set(boneIx, bgName);
+        });
+    });
+
     let details = "";
     function dumpNode(nodeIx, indent) {
         const node = vrmModel.gltf.nodes[nodeIx];
         const nodeName = (node.name || "node") + `(${nodeIx})`;
-        const status = humanBones.has(nodeIx) ? `[${humanBones.get(nodeIx)}]` : "";
+        const status = 
+            (humanBones.has(nodeIx) ? `[${humanBones.get(nodeIx)}]` : "") +
+            (secAnimBones.has(nodeIx) ? `[${secAnimBones.get(nodeIx)}]` : "");
         details += `${indent}${nodeName} ${status}\n`;
         if (node.children) {
             node.children.forEach(n => dumpNode(n, indent + " "));

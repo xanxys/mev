@@ -16,6 +16,7 @@ export async function reduceVrm(model) {
     // vertex reduction
     // float-quantization
 
+    await deleteNonEssentialBones(model);
     await deleteVrmThumbnail(model);
     await extremeResizeTexture(model, 128);
     await stripAllEmotions(model);
@@ -49,6 +50,9 @@ async function extremeResizeTexture(model, maxTexSizePx) {
     model.repackBuffer();
 }
 
+async function deleteNonEssentialBones(model) {
+    
+}
 
 /**
  * Delete all blendshape groups.
