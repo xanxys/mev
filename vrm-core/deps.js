@@ -116,38 +116,32 @@ export class VrmDependency {
         this.viewUsage = viewUsage;
     }
 
+    /**
+     * @returns {Set<number>}
+     */
     getDirectlyUsedAccessors() {
         return new Set(this.accessorUsage.keys());
-    }
-
-    getDirectlyUsedBuffers() {
-        return new Set(this.viewUsage.keys());
-    }
-
-    getDirectlyUsedTextures() {
-        return new Set(this.textureUsage.keys());
-    }
-
-    getDirectlyUsedImages() {
-        return new Set(this.imageUsage.keys());
     }
 
     /**
      * @returns {Set<number>}
      */
-    getUsedBufferViewIds() {
-        const result = new Set();
-        for (let [viewId, usages] of this.viewUsage) {
-            if (usages.length == 0) {
-                continue;
-            }
-            // TODO: Do root-check more reliably.
-            if (usages.length == 1 && usages[0].endsWith("(not referenced)")) {
-                continue;
-            }
-            result.add(viewId);
-        }
-        return result;
+    getDirectlyUsedBuffers() {
+        return new Set(this.viewUsage.keys());
+    }
+
+    /**
+     * @returns {Set<number>}
+     */
+    getDirectlyUsedTextures() {
+        return new Set(this.textureUsage.keys());
+    }
+
+    /**
+     * @returns {Set<number>}
+     */
+    getDirectlyUsedImages() {
+        return new Set(this.imageUsage.keys());
     }
 }
 
