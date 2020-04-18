@@ -25,6 +25,7 @@ export function setupDetailsDialog(vrmModel) {
                 updateDetails: function(vrmModel) {
                     this.detailsText = prettyPrintVrmSizeDetails(vrmModel);
                     this.morphDetails = prettyPrintMorphDetails(vrmModel);
+                    this.boneDetails = prettyPrintBoneDetails(vrmModel);
                 },
             }
         });
@@ -95,6 +96,35 @@ function prettyPrintMorphDetails(vrmModel) {
         });
     });
 
+    return details;
+}
+
+
+/**
+ * 
+ * @param {VrmModel} vrmModel 
+ * @returns {string} Human readable multi-line detail about bone hierarchy.
+ */
+function prettyPrintBoneDetails(vrmModel) {
+    console.log("m", vrmModel);
+
+    let details = "";
+    function dumpNode(nodeIx, indent) {
+        const node = vrmModel.gltf.nodes[nodeIx];
+        const nodeName = (node.name || "node") + `(${nodeIx})`;
+        details += `${indent}${nodeName}\n`;
+        if (node.children) {
+            node.children.forEach(n => dumpNode(n, indent + " "));
+        }
+    }
+
+    vrmModel.gltf.scenes.forEach((scene, sceneIx) => {
+        details += `scene[${sceneIx}]\n`;
+
+        scene.nodes.forEach(rootNode => {
+            dumpNode(rootNode, " ");
+        });
+    });
     return details;
 }
 

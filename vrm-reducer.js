@@ -18,10 +18,10 @@ export async function reduceVrm(model) {
     //// misc
     // float-quantization
 
-    
     await extremeResizeTexture(model, 128);
 
     // await removeAllBlendshapes(model);
+    // TODO: blendshape group collapsing
     await removeUnusedMorphs(model);
     await removeUnusedAccessors(model);
     await removeUnusedBufferViews(model);

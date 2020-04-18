@@ -50,11 +50,14 @@
       <span class="chip-button"
         :class="{'chip-button-active': currentTab == 'BLENDSHAPE'}"
         @click="clickTab('BLENDSHAPE')">Blendshape</span>
+      <span class="chip-button"
+        :class="{'chip-button-active': currentTab == 'BONE'}"
+        @click="clickTab('BONE')">Bones</span>
     </div>
 
     <pre v-if="currentTab == 'BUFFER'" style="overflow:scroll; height: 800px">{{detailsText}}</pre>
     <pre v-if="currentTab == 'BLENDSHAPE'" style="overflow:scroll; height: 800px">{{morphDetails}}</pre>
-    <pre v-if="currentTab == 'BONES'" style="overflow:scroll; height: 800px">{{boneDetails}}</pre>
+    <pre v-if="currentTab == 'BONE'" style="overflow:scroll; height: 800px">{{boneDetails}}</pre>
   </div>
 
   <div style="position: absolute; left:8px; top: 8px; width: 240px; display: none" id="vue_menu">
@@ -120,7 +123,7 @@
         <div class="normal-text">サイズ: {{finalVrmSizeApprox}}</div>
         <div class="normal-text">ポリゴン: {{finalVrmTris}}</div>
         <button @click="downloadVrm">ダウンロード</button><br/>
-        <button @click="reduceVrm">Reduce</button><br/>
+        <button v-if="isDev" @click="reduceVrm">Reduce</button><br v-if="isDev"/>
         <a class="normal-text" href="#" @click="showDetails">データ詳細(開発者向け)</a>
       </section>
     </section>

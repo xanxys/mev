@@ -112,6 +112,7 @@ class MevApplication {
             el: '#vue_menu',
             data: {
                 // Global
+                isDev: (window.location.hostname === "127.0.0.1" && !window.location.href.endsWith("?prd")),
                 startedLoading: false,
                 vrmRoot: null, // VrmModel
 
