@@ -108,6 +108,21 @@ function prettyPrintMorphDetails(vrmModel) {
 function prettyPrintBoneDetails(vrmModel) {
     console.log("m", vrmModel);
 
+    const skeletons = new Map(); // key:nodeIx, val:skinName
+    vrmModel.gltf.skins.forEach((skin, skinIx) => {
+        const nodeIx = skin.skeleton;
+        if (nodeIx === undefined) {
+            return;
+        }
+
+        let skelName = "";
+        if (skeletons.has(nodeIx)) {
+            skelName = skeletons.get(nodeIx) + ",";
+        }
+        skelName += `skin(${skinIx})`;
+        skeletons.set(nodeIx, skelName);
+    });
+
     const humanBones = new Map(); // key:nodeIx, val:nodeName
     vrmModel.gltf.extensions.VRM.humanoid.humanBones.forEach(hb => {
         humanBones.set(hb.node, hb.bone);
@@ -133,6 +148,7 @@ function prettyPrintBoneDetails(vrmModel) {
             (node.skin !== undefined ? "skin" : "") +
             (node.mesh !== undefined ? "mesh" : "") +
             (nodeIx === vrmModel.gltf.extensions.VRM.firstPerson.firstPersonBone ? "[firstperson]" : "") +
+            (skeletons.has(nodeIx) ? `[skeleton root(${skeletons.get(nodeIx)})]` : "") +
             (humanBones.has(nodeIx) ? `[${humanBones.get(nodeIx)}]` : "") +
             (secAnimBones.has(nodeIx) ? `[${secAnimBones.get(nodeIx)}]` : "");
         details += `${indent}${nodeName} ${status}\n`;
