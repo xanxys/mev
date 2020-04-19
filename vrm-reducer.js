@@ -195,14 +195,18 @@ async function mergeWeights(model, nodeMap) {
         }
         console.log("Joint migration", "move", jointIxMove, "trans", jointIxTransfer);
         // Exec migration.
-        
         remapJointMatrices(model, skin.inverseBindMatrices, newJoints.length, jointIxMove);
-        
-        mesh.primitives.forEach(
-            prim => remapWeights(model, prim.attributes.JOINTS_0, prim.attributes.WEIGHTS_0, jointIxMove, jointIxTransfer));
-        
+        const alreadyProcessedJointAccIx = new Set();
+        mesh.primitives.forEach(prim => {
+            const j = prim.attributes.JOINTS_0;
+            const w = prim.attributes.WEIGHTS_0;
+            if (alreadyProcessedJointAccIx.has(j)) {
+                return;
+            }
+            remapWeights(model, j, w, jointIxMove, jointIxTransfer);
+            alreadyProcessedJointAccIx.add(j);
+        });
         skin.joints = newJoints;
-        
     });
 }
 
@@ -252,6 +256,7 @@ function remapJointMatrices(model, accId, newNumJoints, jointIdMap) {
 
 /**
  * rapackBuffer must be called. Otherwise, unused buffer will remain allocated.
+ * TODO: merge jointIxMove & jointIxTransfer
  * 
  * @param {VrmModel} model to be mutated
  * @param {number} jointAccId JOINTS_0 accessor id
@@ -339,10 +344,14 @@ function remapWeights(model, jointAccId, weightAccId, jointIxMove, jointIxTransf
 
         const newJW = new Map(); // key:new joint ix, val:new weight
         for (const [j, w] of oldJW.entries()) {
+            // TODO: refactor
             if (jointIxMove.has(j)) {
                 const nj = jointIxMove.get(j);
-                console.assert(!newJW.has(nj));
-                newJW.set(nj, w);
+                if (newJW.has(nj)) {
+                    newJW.set(nj, newJW.get(nj) + w);
+                } else {
+                    newJW.set(nj, w);
+                }
             } else if (jointIxTransfer.has(j)) {
                 const nj = jointIxTransfer.get(j);
                 if (newJW.has(nj)) {
