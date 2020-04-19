@@ -22,6 +22,7 @@ export async function reduceVrm(model) {
     await extremeResizeTexture(model, 128);
     await stripAllEmotions(model);
     await removeUnusedMorphs(model);
+    await reduceMesh(model, 0.1);
     await removeUnusedTextures(model);
     await removeUnusedImages(model);
     await removeUnusedAccessors(model);
@@ -30,6 +31,84 @@ export async function reduceVrm(model) {
     model.repackBuffer();
     return null;
 }
+
+/**
+ * TODO: implement VP selection optimization using:
+ * "Surface Simplification Using Quadric Error Metrics" (1997)
+ * https://www.cs.cmu.edu/~./garland/Papers/quadrics.pdf
+ * 
+ * @param {VrmModel} model 
+ * @param {number} target number of vertices (0.3: reduce to 30% of vertices)
+ */
+async function reduceMesh(model, target) {
+    function computeErrorMatrix() {
+
+    }
+
+    model.gltf.meshes.forEach(mesh => {
+        mesh.primitives.forEach(prim => {
+            const vps = new Set(); // vix(small):vix(large)
+            function encodeVPair(va, vb) {
+                return va < vb ? `${va}:${vb}` : `${vb}:${va}`;
+            }
+
+            // TODO: primitive type, triangles
+            prim.indices;
+            prim.attributes;
+            prim.targets;
+
+            // prim.indices
+            const acc = model.gltf.accessors[prim.indices];
+            const buffer = model._getBufferView(acc.bufferView);
+            const ty = TYPE_RMAP[acc.componentType];
+            if (ty !== "u32") {
+                console.warn("Unsupported indices buf type", ty);
+                return;
+            }
+            const buf = new DataView(buffer);
+            function getIndex(i) {
+                return buf.getUint32(4 * i, true);
+            }
+            for (let i = 0; i < acc.count; i+=3) {
+                const vix0 = getIndex(i + 0);
+                const vix1 = getIndex(i + 1);
+                const vix2 = getIndex(i + 2);
+                vps.add(encodeVPair(vix0, vix1));
+                vps.add(encodeVPair(vix1, vix2));
+                vps.add(encodeVPair(vix2, vix0));
+            }
+            // random picking
+            const vpReductionOrder = selectRandom(vps, Math.floor(vps.size * (1 - target)));
+            const vertexMap = new Map(); // old vix, new vix
+
+            for (const vp of vpReductionOrder) {
+                const [v0, v1] = vp.split(':').map(parseInt);
+
+
+            }
+        });
+    });
+}
+
+/**
+ * 
+ * @param {Iterable} iter 
+ * @param {number} k 
+ * @returns {Array<any>} k randomly ordered elements uniformly picked from iter
+ */
+function selectRandom(iter, k) {
+    const elems = new Array(...iter);
+    const n = elems.length;
+    console.assert(k <= n);
+    for (let i = 0; i < n; i++) {
+        const j = Math.floor(Math.random() * (n - i - 1));
+        [elems[i], elems[j]] = [elems[j], elems[j]];
+    }
+    return elems.slice(0, k);
+}
+
+
+
 
 /**
  * @param {VrmModel} model
