@@ -108,11 +108,50 @@ function prettyPrintMorphDetails(vrmModel) {
 function prettyPrintBoneDetails(vrmModel) {
     console.log("m", vrmModel);
 
+    const skeletons = new Map(); // key:nodeIx, val:skinName
+    vrmModel.gltf.skins.forEach((skin, skinIx) => {
+        const nodeIx = skin.skeleton;
+        if (nodeIx === undefined) {
+            return;
+        }
+
+        let skelName = "";
+        if (skeletons.has(nodeIx)) {
+            skelName = skeletons.get(nodeIx) + ",";
+        }
+        skelName += `skin(${skinIx})`;
+        skeletons.set(nodeIx, skelName);
+    });
+
+    const humanBones = new Map(); // key:nodeIx, val:nodeName
+    vrmModel.gltf.extensions.VRM.humanoid.humanBones.forEach(hb => {
+        humanBones.set(hb.node, hb.bone);
+    });
+
+    const secAnimBones = new Map();
+    vrmModel.gltf.extensions.VRM.secondaryAnimation.boneGroups.forEach((bg, bgIx) => {
+        const bgName = `spring(${bgIx})`;
+        bg.bones.forEach(boneIx => {
+            secAnimBones.set(boneIx, bgName);
+        });
+    });
+    vrmModel.gltf.extensions.VRM.secondaryAnimation.colliderGroups.forEach((colg, colgIx) => {
+        const colgName = `colliders(${colgIx})`;
+        secAnimBones.set(colg.node, colgName);
+    });
+
     let details = "";
     function dumpNode(nodeIx, indent) {
         const node = vrmModel.gltf.nodes[nodeIx];
         const nodeName = (node.name || "node") + `(${nodeIx})`;
-        details += `${indent}${nodeName}\n`;
+        const status = 
+            (node.skin !== undefined ? "skin" : "") +
+            (node.mesh !== undefined ? "mesh" : "") +
+            (nodeIx === vrmModel.gltf.extensions.VRM.firstPerson.firstPersonBone ? "[firstperson]" : "") +
+            (skeletons.has(nodeIx) ? `[skeleton root(${skeletons.get(nodeIx)})]` : "") +
+            (humanBones.has(nodeIx) ? `[${humanBones.get(nodeIx)}]` : "") +
+            (secAnimBones.has(nodeIx) ? `[${secAnimBones.get(nodeIx)}]` : "");
+        details += `${indent}${nodeName} ${status}\n`;
         if (node.children) {
             node.children.forEach(n => dumpNode(n, indent + " "));
         }

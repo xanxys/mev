@@ -1,13 +1,22 @@
 // ES6
 import { VrmModel } from './vrm.js';
 
+export const TYPE_RMAP = {
+    5120: "i8",
+    5121: "u8",
+    5122: "i16",
+    5123: "u16",
+    5124: "i32", // not allowed in glTF
+    5125: "u32",
+    5126: "f32",
+};
+
 export class VrmDependency {
     /**
      * @param {VrmModel} vrmModel
      */
     constructor(vrmModel) {
         const textureUsage = new Map();
-        // ROOT
         if (vrmModel.gltf.extensions.VRM.meta && vrmModel.gltf.extensions.VRM.meta.texture !== undefined) {
             multimapAdd(textureUsage, vrmModel.gltf.extensions.VRM.meta.texture, "VRM-thumbnail");
         }
@@ -34,7 +43,7 @@ export class VrmDependency {
                 multimapAdd(textureUsage, mat.emissiveTexture.index, `${matName}.emission`);
             }
         });
-        console.log("texture", textureUsage);
+        this.textureUsage = textureUsage;
     
         const imageUsage = new Map();
         vrmModel.gltf.textures.forEach((tex, texId) => {
@@ -47,7 +56,7 @@ export class VrmDependency {
                 multimapAdd(imageUsage, imgId, `${texRef}`);
             }
         });
-        console.log("image", imageUsage);
+        this.imageUsage = imageUsage;
     
         const accessorUsage = new Map();
         vrmModel.gltf.meshes.forEach((mesh, meshId) => {
@@ -90,7 +99,6 @@ export class VrmDependency {
             multimapAdd(accessorUsage, skin.inverseBindMatrices, `skin(${skin.name}).bindMatrix`);
         });
         this.accessorUsage = accessorUsage;
-        console.log("accessor", accessorUsage);
     
         const viewUsage = new Map();
         vrmModel.gltf.images.forEach((img, imgId) => {
@@ -104,17 +112,27 @@ export class VrmDependency {
         });
         vrmModel.gltf.accessors.forEach((accessor, accId) => {
             const viewId = accessor.bufferView;
-            const accRef = `accessor(${accessor.type},${accessor.byteOffset})`;
+            
+            const accAttribs = [];
+            accAttribs.push(`${accessor.type}<${TYPE_RMAP[accessor.componentType]}>`);
+            accAttribs.push(`len:${accessor.count}`);
+            if (accessor.byteOffset !== 0) {
+                accAttribs.push(`ofs:${accessor.byteOffset}`);
+            }
+            const accRef = `accessor(${accAttribs.join(",")})`;
+
             if (accessorUsage.has(accId)) {
                 multimapAdd(viewUsage, viewId, ...accessorUsage.get(accId).map(usage => `${accRef} as ${usage}`));
             } else {
                 multimapAdd(viewUsage, viewId, `${accRef} (not referenced)`);
             }
         });
-        console.log("view", viewUsage);
         this.viewUsage = viewUsage;
     }
 
+    /**
+     * @returns {Set<number>}
+     */
     getDirectlyUsedAccessors() {
         return new Set(this.accessorUsage.keys());
     }
@@ -122,19 +140,22 @@ export class VrmDependency {
     /**
      * @returns {Set<number>}
      */
-    getUsedBufferViewIds() {
-        const result = new Set();
-        for (let [viewId, usages] of this.viewUsage) {
-            if (usages.length == 0) {
-                continue;
-            }
-            // TODO: Do root-check more reliably.
-            if (usages.length == 1 && usages[0].endsWith("(not referenced)")) {
-                continue;
-            }
-            result.add(viewId);
-        }
-        return result;
+    getDirectlyUsedBuffers() {
+        return new Set(this.viewUsage.keys());
+    }
+
+    /**
+     * @returns {Set<number>}
+     */
+    getDirectlyUsedTextures() {
+        return new Set(this.textureUsage.keys());
+    }
+
+    /**
+     * @returns {Set<number>}
+     */
+    getDirectlyUsedImages() {
+        return new Set(this.imageUsage.keys());
     }
 }
 
