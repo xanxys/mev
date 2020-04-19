@@ -7,14 +7,16 @@ import { VrmDependency, TYPE_RMAP } from "./vrm-core/deps.js";
  * @returns {Promise<void>}
  */
 export async function reduceVrm(model) {
-    // TODO:
-    // merging multiple blendshapes in a blendshape group
-    // Remove nodes
-    // mesh merging
-    // atlas-ing
-    // vertex reduction
-    // float-quantization
-
+    /* TODO
+    mem reduction
+     - vertex reduction
+    GPU reduction
+     - mesh / primitive merging, atlasing
+    compressed size reduction
+     - float quantization
+    user-editing
+     - merging multiple blendshapes in a blendshape group
+    */
     await deleteNonEssentialBones(model);
     await deleteVrmThumbnail(model);
     await extremeResizeTexture(model, 128);
@@ -179,6 +181,12 @@ async function deleteNonEssentialBones(model) {
 }
 
 
+/**
+ * Returns set difference.
+ * @param {Set<any>} sa 
+ * @param {Set<any>} sb 
+ * @returns {Set<any>} sa - sb
+ */
 function setSub(sa, sb) {
     const res = new Set(sa);
     for (let e of sb) {
