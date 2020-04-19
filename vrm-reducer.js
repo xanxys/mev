@@ -136,8 +136,44 @@ async function deleteNonEssentialBones(model) {
         new Map(new Array(...weightMergePlan.entries()).map(([k,v]) => [nodeIxToName(k), nodeIxToName(v)])));
     mergeWeights(model, weightMergePlan);
 
-    // TODO:
     // Remove nodes
+    const nodeRemap = new Map(); // key:old node ix, val:old node ix
+    const newNodes = [];
+    let newNodeIx = 0;
+    model.gltf.nodes.forEach((node, nodeIx) => {
+        if (!freeNodes.has(nodeIx)) {
+            nodeRemap.set(nodeIx, newNodeIx);
+            newNodes.push(node);
+            newNodeIx++;
+        }
+    });
+    console.log("Node migration", nodeRemap);
+
+    // Execute migration.
+    model.gltf.scenes.forEach(scene => scene.nodes = scene.nodes.map(n => nodeRemap.get(n)));
+    model.gltf.skins.forEach(skin => {
+        skin.skeleton = nodeRemap.get(skin.skeleton);
+        skin.joints = skin.joints.map(n => nodeRemap.get(n));
+    });
+    model.gltf.extensions.VRM.firstPerson.firstPersonBone = nodeRemap.get(model.gltf.extensions.VRM.firstPerson.firstPersonBone);
+    model.gltf.extensions.VRM.humanoid.humanBones.forEach(hb => hb.node = nodeRemap.get(hb.node));
+    // TODO: Migrate secondaryAnimation.
+    newNodes.forEach(node => {
+        const newChildren = [];
+        if (node.children !== undefined) {
+            node.children.forEach(n => {
+                if (nodeRemap.has(n)) {
+                    newChildren.push(nodeRemap.get(n));
+                }
+            });
+        }
+        if (newChildren.length > 0) {
+            node.children = newChildren;
+        } else {
+            delete node.children;
+        }
+    });
+    model.gltf.nodes = newNodes;
 
     model.version += 1;
 }
@@ -166,7 +202,6 @@ async function mergeWeights(model, nodeMap) {
 
         const mesh = model.gltf.meshes[node.mesh];
         const skin = model.gltf.skins[node.skin];
-        console.log("mW", mesh, skin);
 
         const newNodeToJoint = new Map(); // key:node, val:new joint ix
         const newJoints = [];
@@ -377,9 +412,7 @@ function remapWeights(model, jointAccId, weightAccId, jointIxMove, jointIxTransf
             setWElem(vertIx, elemIx, ws[elemIx]);
         }
     }
-    console.log("JBUF", jointAcc.bufferView, jBuffer, newJBuffer);
     model.setBufferData(jointAcc.bufferView, newJBuffer);
-    console.log("WBUF", weightAcc.bufferView, wBuffer, newWBuffer);
     model.setBufferData(weightAcc.bufferView, newWBuffer);
 }
 
