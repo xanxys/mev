@@ -159,6 +159,11 @@ export class VrmDependency {
     }
 }
 
+/**
+ * @param {Map<any, any>} map to be mutated
+ * @param {any} k key
+ * @param {any[]} deltaVs
+ */
 function multimapAdd(map, k, ...deltaVs) {
     let vs = map.get(k) || [];
     vs.push(...deltaVs);

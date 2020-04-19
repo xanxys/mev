@@ -31,12 +31,17 @@ export async function reduceVrm(model) {
     return null;
 }
 
+/**
+ * @param {VrmModel} model
+ */
 async function deleteVrmThumbnail(model) {
     delete model.gltf.extensions.VRM.meta.texture;
     model.version += 1;
 }
 
 /**
+ * @param {VrmModel} model
+ * @param {number} maxTexSizePx
  * @returns {Promise<void>}
  */
 async function extremeResizeTexture(model, maxTexSizePx) {
@@ -51,6 +56,9 @@ async function extremeResizeTexture(model, maxTexSizePx) {
     model.repackBuffer();
 }
 
+/**
+ * @param {VrmModel} model
+ */
 async function deleteNonEssentialBones(model) {
     model.gltf.extensions.VRM.secondaryAnimation.boneGroups = [];
     model.gltf.extensions.VRM.secondaryAnimation.colliderGroups = [];
@@ -196,6 +204,23 @@ function setSub(sa, sb) {
 }
 
 /**
+ * Returns merged map.
+ * @param {Map<any, any>} m1
+ * @param {Map<any, any>} m2
+ * @returns {Map<any, any>} m1 + m2 (m2 is preferred in case of key collision)
+ */
+function mapMerge(m1, m2) {
+    const r = new Map();
+    for (let [k, v] of m1) {
+        r.set(k, v);
+    }
+    for (let [k, v] of m2) {
+        r.set(k, v);
+    }
+    return r;
+}
+
+/**
  * Move weights according to nodeMap. Nodes won't be deleted or re-indexed.
  * Joints will be re-generated to drop 0-weight nodes.
  * @param {VrmModel} model 
@@ -246,7 +271,7 @@ async function mergeWeights(model, nodeMap) {
             if (alreadyProcessedJointAccIx.has(j)) {
                 return;
             }
-            remapWeights(model, j, w, jointIxMove, jointIxTransfer);
+            remapWeights(model, j, w, mapMerge(jointIxMove, jointIxTransfer));
             alreadyProcessedJointAccIx.add(j);
         });
         skin.joints = newJoints;
@@ -299,15 +324,13 @@ function remapJointMatrices(model, accId, newNumJoints, jointIdMap) {
 
 /**
  * rapackBuffer must be called. Otherwise, unused buffer will remain allocated.
- * TODO: merge jointIxMove & jointIxTransfer
  * 
  * @param {VrmModel} model to be mutated
  * @param {number} jointAccId JOINTS_0 accessor id
- * @param {number} weightAccId WEIGHTS_0 accessor ID
- * @param {Map<number, number>} jointIxMove: dst<-src
+ * @param {number} weightAccId WEIGHTS_0 accessor id
  * @param {Map<number, number>} jointIxTransfer: dst+=src; src=0;
  */
-function remapWeights(model, jointAccId, weightAccId, jointIxMove, jointIxTransfer) {
+function remapWeights(model, jointAccId, weightAccId, jointIxTransfer) {
     // Joint buffer accessor
     const jointAcc = model.gltf.accessors[jointAccId];
     console.assert(jointAcc.type === "VEC4");
@@ -387,15 +410,7 @@ function remapWeights(model, jointAccId, weightAccId, jointIxMove, jointIxTransf
 
         const newJW = new Map(); // key:new joint ix, val:new weight
         for (const [j, w] of oldJW.entries()) {
-            // TODO: refactor
-            if (jointIxMove.has(j)) {
-                const nj = jointIxMove.get(j);
-                if (newJW.has(nj)) {
-                    newJW.set(nj, newJW.get(nj) + w);
-                } else {
-                    newJW.set(nj, w);
-                }
-            } else if (jointIxTransfer.has(j)) {
+            if (jointIxTransfer.has(j)) {
                 const nj = jointIxTransfer.get(j);
                 if (newJW.has(nj)) {
                     newJW.set(nj, newJW.get(nj) + w);
@@ -530,6 +545,7 @@ async function removeUnusedMorphs(model) {
 }
 
 /**
+ * @param {VrmModel} model
  * @returns {Promise<void>}
  */
 async function removeUnusedAccessors(model) {
@@ -697,6 +713,10 @@ async function removeUnusedBufferViews(model) {
     });
 }
 
+/**
+ * @param {VrmModel} model
+ * @returns {boolean}
+ */
 function isUniformPrimitive(model) {
     return model.gltf.meshes.every(mesh => {
         if (mesh.primitives.length === 0) {
