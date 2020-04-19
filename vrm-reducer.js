@@ -177,14 +177,14 @@ async function mergeWeights(model, nodeMap) {
         }
         console.log("Joint migration", "move", jointIxMove, "trans", jointIxTransfer);
         // Exec migration.
-        /*
+        
         remapJointMatrices(model, skin.inverseBindMatrices, newJoints.length, jointIxMove);
         
         mesh.primitives.forEach(
             prim => remapWeights(model, prim.attributes.JOINTS_0, prim.attributes.WEIGHTS_0, jointIxMove, jointIxTransfer));
         
         skin.joints = newJoints;
-        */
+        
     });
 }
 
@@ -226,6 +226,7 @@ function remapJointMatrices(model, accId, newNumJoints, jointIdMap) {
         newView.set(oldView.slice(i * blockSize, (i + 1) * blockSize), newIx * blockSize);
     }
 
+    matricesAcc.count = newNumJoints;
     model.setBufferData(matricesAcc.bufferView, newBuffer);
 }
 
