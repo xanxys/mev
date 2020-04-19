@@ -142,6 +142,15 @@ async function deleteNonEssentialBones(model) {
     model.version += 1;
 }
 
+
+function setSub(sa, sb) {
+    const res = new Set(sa);
+    for (let e of sb) {
+        res.delete(e);
+    }
+    return res;
+}
+
 /**
  * Move weights according to nodeMap. Nodes won't be deleted or re-indexed.
  * Joints will be re-generated to drop 0-weight nodes.
@@ -159,20 +168,29 @@ async function mergeWeights(model, nodeMap) {
         const skin = model.gltf.skins[node.skin];
         console.log("mW", mesh, skin);
 
-        const jointIxTransfer = new Map();
-        const jointIxMove = new Map();
+        const newNodeToJoint = new Map(); // key:node, val:new joint ix
         const newJoints = [];
         let newJointIx = 0;
+        for (let n of setSub(new Set(skin.joints), new Set(nodeMap.keys()))) {
+            newNodeToJoint.set(n, newJointIx);
+            newJoints.push(n);
+            newJointIx++;
+        }
+        const jointIxTransfer = new Map();
+        const jointIxMove = new Map();
         skin.joints.forEach((nodeIx, jointIx) => {
-            if (nodeMap.has(nodeIx)) {
-                jointIxTransfer.set(jointIx, nodeMap.get(nodeIx));
+            const execTransfer = nodeMap.has(nodeIx);
+            const newNodeIx = execTransfer ? nodeMap.get(nodeIx) : nodeIx;
+            console.assert(newNodeToJoint.has(newNodeIx));
+            const newJoint = newNodeToJoint.get(newNodeIx);
+
+            if (execTransfer) {
+                jointIxTransfer.set(jointIx, newJoint);
             } else {
-                jointIxMove.set(jointIx, newJointIx);
-                newJoints.push(nodeIx);
-                newJointIx++;
+                jointIxMove.set(jointIx, newJoint);
             }
         });
-        if (jointIxTransfer.length === 0 && jointIxMove.length === 0) {
+        if (jointIxTransfer.size === 0 && jointIxMove.size === 0) {
             return;
         }
         console.log("Joint migration", "move", jointIxMove, "trans", jointIxTransfer);
@@ -208,6 +226,8 @@ const TYPE_BYTES = {
  * @param {Map<number, number>} jointIdMap 
  */
 function remapJointMatrices(model, accId, newNumJoints, jointIdMap) {
+    console.assert(jointIdMap.size === newNumJoints);
+
     const matricesAcc = model.gltf.accessors[accId];
     console.assert(matricesAcc.type === "MAT4");
     const blockSize = TYPE_BYTES[matricesAcc.componentType] * 16;
