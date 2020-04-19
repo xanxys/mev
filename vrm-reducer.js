@@ -4,7 +4,7 @@ import { VrmDependency, TYPE_RMAP } from "./vrm-core/deps.js";
 
 /**
  * @param {VrmModel} model: will be mutated
- * @returns {Promise<null>}
+ * @returns {Promise<void>}
  */
 export async function reduceVrm(model) {
     // TODO:
@@ -35,7 +35,7 @@ async function deleteVrmThumbnail(model) {
 }
 
 /**
- * @returns {Promise<null>}
+ * @returns {Promise<void>}
  */
 async function extremeResizeTexture(model, maxTexSizePx) {
     for (let i = 0; i < model.gltf.images.length; i++) {
@@ -156,7 +156,7 @@ function setSub(sa, sb) {
  * Joints will be re-generated to drop 0-weight nodes.
  * @param {VrmModel} model 
  * @param {Map<number, number>} nodeMap: key:src node id / val:dst node id
- * @returns {Promise<null>}
+ * @returns {Promise<void>}
  */
 async function mergeWeights(model, nodeMap) {
     model.gltf.nodes.forEach(node => {
@@ -386,7 +386,7 @@ function remapWeights(model, jointAccId, weightAccId, jointIxMove, jointIxTransf
 
 /**
  * Delete all blendshape groups.
- * @returns {Promise<null>}
+ * @returns {Promise<void>}
  */
 async function stripAllEmotions(model) {
     model.gltf.extensions.VRM.blendShapeMaster.blendShapeGroups = [];
@@ -395,7 +395,7 @@ async function stripAllEmotions(model) {
 
 /**
  * Strip all label/names for human.
- * @returns {Promise<null>}
+ * @returns {Promise<void>}
  */
 async function removeAllNames(model) {
     model.gltf.images.forEach((image, imageIx) => {
@@ -425,7 +425,7 @@ async function removeAllNames(model) {
 }
 
 /**
- * @returns {Promise<null>}
+ * @returns {Promise<void>}
  */
 async function removeUnusedMorphs(model) {
     if (!isUniformPrimitive(model)) {
@@ -489,7 +489,7 @@ async function removeUnusedMorphs(model) {
 }
 
 /**
- * @returns {Promise<null>}
+ * @returns {Promise<void>}
  */
 async function removeUnusedAccessors(model) {
     const deps = new VrmDependency(model);
@@ -542,7 +542,7 @@ async function removeUnusedAccessors(model) {
 }
 
 /**
- * @returns {Promise<null>}
+ * @returns {Promise<void>}
  */
 async function removeUnusedTextures(model) {
     const deps = new VrmDependency(model);
@@ -622,7 +622,7 @@ async function removeUnusedImages(model) {
 }
 
 /**
- * @returns {Promise<null>}
+ * @returns {Promise<void>}
  */
 async function removeUnusedBufferViews(model) {
     const deps = new VrmDependency(model);
