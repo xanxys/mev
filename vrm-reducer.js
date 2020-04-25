@@ -51,43 +51,173 @@ async function reduceMesh(model, target) {
             function encodeVPair(va, vb) {
                 return va < vb ? `${va}:${vb}` : `${vb}:${va}`;
             }
+            function decodeVPair(vp) {
+                return vp.split(':').map(parseInt);
+            }
 
             // TODO: primitive type, triangles
-            prim.indices;
-            prim.attributes;
+            const numVertices = model.gltf.accessors[prim.attributes.POSITION].count;
             prim.targets;
 
-            // prim.indices
-            const acc = model.gltf.accessors[prim.indices];
-            const buffer = model._getBufferView(acc.bufferView);
-            const ty = TYPE_RMAP[acc.componentType];
-            if (ty !== "u32") {
-                console.warn("Unsupported indices buf type", ty);
-                return;
-            }
-            const buf = new DataView(buffer);
-            function getIndex(i) {
-                return buf.getUint32(4 * i, true);
-            }
-            for (let i = 0; i < acc.count; i+=3) {
-                const vix0 = getIndex(i + 0);
-                const vix1 = getIndex(i + 1);
-                const vix2 = getIndex(i + 2);
+            const tris = readIndexBuffer(model, prim.indices);
+            console.assert(tris.length % 3 === 0);
+            for (let i = 0; i < tris.length; i+=3) {
+                const vix0 = tris[i + 0];
+                const vix1 = tris[i + 1];
+                const vix2 = tris[i + 2];
                 vps.add(encodeVPair(vix0, vix1));
                 vps.add(encodeVPair(vix1, vix2));
                 vps.add(encodeVPair(vix2, vix0));
             }
             // random picking
             const vpReductionOrder = selectRandom(vps, Math.floor(vps.size * (1 - target)));
-            const vertexMap = new Map(); // old vix, new vix
 
+            const vertexMergeTracker = new IndexMergeTracker();
             for (const vp of vpReductionOrder) {
-                const [v0, v1] = vp.split(':').map(parseInt);
-
-
+                let [v0, v1] = decodeVPair(vp);
+                vertexMergeTracker.mergePair(v0, v1);
             }
+
+            // remove degenerate tris
+            // Encode triangle's identity, assuming cyclic symmetry. (but not allowing flipping)
+            function encodeTriKey(v0, v1, v2) {
+                const vmin = Math.min(v0, v1, v2);
+                if (v0 === vmin) {
+                    return `${v0}:${v1}:${v2}`;
+                } else if (v1 === vmin) {
+                    return `${v1}:${v2}:${v0}`;
+                } else {
+                    return `${v2}:${v0}:${v1}`;
+                }
+            }
+            const triKeys = new Set();
+            let newTris = [];
+            for (let i = 0; i < tris.length; i+=3) {
+                const vix0 = vertexMergeTracker.resolve(tris[i + 0]);
+                const vix1 = vertexMergeTracker.resolve(tris[i + 1]);
+                const vix2 = vertexMergeTracker.resolve(tris[i + 2]);
+                if (vix0 === vix1 || vix1 === vix2 || vix2 === vix0) {
+                    continue; // omit
+                }
+                const key = encodeTriKey(vix0, vix1, vix2);
+                if (triKeys.has(key)) {
+                    // Two different triangles can degenerate into single triangle after 3 VP collapses.
+                    continue; // omit
+                }
+                // accept
+                newTris.push(vix0, vix1, vix2);
+                triKeys.add(key);
+            }
+            console.assert(newTris.length <= tris.length);
+
+            const vertexPacking = new ArrayPacking(new Set(newTris),  numVertices);
+            newTris = newTris.map(vertexPacking.convert);
+            //writeIndexBuffer(model, newTris); // ???
+
+
+            //vertexPacking.apply
+
         });
     });
+}
+
+
+/**
+ * @param {VrmModel} model
+ * @param {number} accId
+ * @returns {Uint32Array}
+ */
+function readIndexBuffer(model, accId) {
+    const acc = model.gltf.accessors[accId];
+    console.assert(acc.type === "SCALAR");
+    const blob = model._getBufferView(acc.bufferView);
+    const blobView = new DataView(blob);
+
+    const data = new Uint32Array(acc.count);
+    const ty = TYPE_RMAP[acc.type];
+    console.assert(ty === "u8" || ty === "u16" || ty === "u32");
+    for (let i = 0; i < acc.count; i++) {
+        if (ty === "u8") {
+            data[i] = blobView.getUint8(i);
+        } else if (ty === "u16") {
+            data[i] = blobView.getUint16(i * 2, true);
+        } else if (ty === "u32") {
+            data[i] = blobView.getUint32(i * 4, true);
+        }
+    }
+    return data;
+}
+
+
+function writeIndexBuffer(model, ixBuffer) {
+
+}
+
+class ArrayPacking {
+    /**
+     * @param {Set<number>} usedIxs
+     * @param {number} length
+     */
+    constructor(usedIxs, length) {
+        console.assert(0 <= length);
+        usedIxs.forEach(ix => console.assert(0 <= ix && ix < length));
+        this.length = length;
+        
+        const mapping = new Map();
+        let newIx = 0;
+        for (const oldIx of Array.from(usedIxs).sort()) {
+            mapping.set(oldIx, newIx);
+            newIx++;
+        }
+        this.mapping = mapping;
+    }
+
+    convert(oldIx) {
+        console.assert(this.mapping.has(oldIx));
+        return this.mapping.get(oldIx);
+    }
+
+    /**
+     * @param {any[]} array
+     * @returns {any[]} packed array
+     */
+    apply(array) {
+        console.assert(array.length === this.length);
+        return array.filter((_, ix) => this.mapping.has(ix));
+    }
+}
+
+
+
+class IndexMergeTracker {
+    constructor() {
+        this.mapping = new Map();
+    }
+
+    /**
+     * 
+     * @param {number} to: old index
+     * @param {number} from: old index
+     */
+    mergePair(to, from) {
+        to = this.resolve(to);
+        from = this.resolve(from);
+        this.mapping.set(from, to);
+    }
+
+    /**
+     * Lookup latest index corresponding to ix.
+     * @param {number} ix: index in some merging state
+     */
+    resolve(ix) {
+        if (!this.mapping.has(ix)) {
+            return ix;
+        }
+
+        const latestIx = this.resolve(this.mapping.get(ix));
+        this.mapping.set(ix, latestIx); // update cache to accelerate future resolve
+        return latestIx;
+    }
 }
 
 /**
