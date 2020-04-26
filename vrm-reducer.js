@@ -662,78 +662,16 @@ function remapJointMatrices(model, accId, newNumJoints, jointIdMap) {
  * @param {Map<number, number>} jointIxTransfer: dst+=src; src=0;
  */
 function remapWeights(model, jointAccId, weightAccId, jointIxTransfer) {
-    // Joint buffer accessor
-    const jointAcc = model.gltf.accessors[jointAccId];
-    console.assert(jointAcc.type === "VEC4");
-    const jElemType = TYPE_RMAP[jointAcc.componentType];
-    const jElemSize = TYPE_BYTES[jointAcc.componentType];
-    const jVecSize = jElemSize * 4;
-
-    const jBuffer = model._getBufferView(jointAcc.bufferView);
-    const newJBuffer = new ArrayBuffer(jBuffer.byteLength);
-    const jView = new DataView(jBuffer);
-    const newJView = new DataView(newJBuffer);
-    
-    function getJElem(vertIx, elemIx) {
-        const ofs = vertIx * jVecSize + elemIx * jElemSize;
-        if (jElemType === "u8") {
-            return jView.getUint8(ofs);
-        } else if (jElemType === "u16") {
-            return jView.getUint16(ofs, true);
-        }
-    }
-    function setJElem(vertIx, elemIx, val) {
-        const ofs = vertIx * jVecSize + elemIx * jElemSize;
-        if (jElemType === "u8") {
-            return newJView.setUint8(ofs, val);
-        } else if (jElemType === "u16") {
-            return newJView.setUint16(ofs, val, true);
-        }
-    }
-
-    // Weight buffer accessor
-    const weightAcc = model.gltf.accessors[weightAccId];
-    console.assert(jointAcc.type === "VEC4");
-    const wElemType = TYPE_RMAP[weightAcc.componentType];
-    const wElemSize = TYPE_BYTES[weightAcc.componentType];
-    const wVecSize = wElemSize * 4;
-
-    const wBuffer = model._getBufferView(weightAcc.bufferView);
-    const newWBuffer = new ArrayBuffer(wBuffer.byteLength);
-    const wView = new DataView(wBuffer);
-    const newWView = new DataView(newWBuffer);
-    
-    function getWElem(vertIx, elemIx) {
-        const ofs = vertIx * wVecSize + elemIx * wElemSize;
-        if (wElemType === "u8") {
-            return wView.getUint8(ofs) / 255.0;
-        } else if (wElemType === "u16") {
-            return wView.getUint16(ofs, true) / 65535.0;
-        } else if (wElemType === "f32") {
-            return wView.getFloat32(ofs, true);
-        }
-    }
-    function setWElem(vertIx, elemIx, val) {
-        const ofs = vertIx * wVecSize + elemIx * wElemSize;
-        if (val < 0) val = 0;
-        if (val > 1) val = 1;
-        if (wElemType === "u8") {
-            return newWView.setUint8(ofs, Math.round(val * 255.0));
-        } else if (wElemType === "u16") {
-            return newWView.setUint16(ofs, Math.round(val * 65535.0), true);
-        } else if (wElemType === "f32") {
-            return newWView.setFloat32(ofs, val, true);
-        }
-    }
-
-    console.assert(jointAcc.count === weightAcc.count);
-    const numVertex = jointAcc.count;
+    const jointData = readVecBuffer(model, jointAccId);
+    const weightData = readVecBuffer(model, weightAccId);
+    console.assert(jointData.length === weightData.length);
+    const numVertex = jointData.length;
 
     for (let vertIx = 0; vertIx < numVertex; vertIx++) {
         const oldJW = new Map();
         for (let elemIx = 0; elemIx < 4; elemIx++) {
-            const j = getJElem(vertIx, elemIx);
-            const w = getWElem(vertIx, elemIx);
+            const j = jointData[vertIx][elemIx];
+            const w = weightData[vertIx][elemIx];
             if (j !==0 || w !== 0) {
                 oldJW.set(j, w);
             }
@@ -760,16 +698,12 @@ function remapWeights(model, jointAccId, weightAccId, jointIxTransfer) {
             ws[njIx] = w;
             njIx++;
         }
-
-        for (let elemIx = 0; elemIx < 4; elemIx++) {
-            setJElem(vertIx, elemIx, js[elemIx]);
-            setWElem(vertIx, elemIx, ws[elemIx]);
-        }
+        jointData[vertIx] = js;
+        weightData[vertIx] = ws;
     }
-    model.setBufferData(jointAcc.bufferView, newJBuffer);
-    model.setBufferData(weightAcc.bufferView, newWBuffer);
+    writeVecBuffer(model, jointAccId, jointData);
+    writeVecBuffer(model, weightAccId, weightData);
 }
-
 
 /**
  * Delete all blendshape groups.
