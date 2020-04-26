@@ -126,7 +126,7 @@ export class VrmDependency {
             const accAttribs = [];
             accAttribs.push(`${accessor.type}<${TYPE_RMAP[accessor.componentType]}>`);
             accAttribs.push(`len:${accessor.count}`);
-            if (accessor.byteOffset !== 0) {
+            if (accessor.byteOffset !== undefined && accessor.byteOffset !== 0) {
                 accAttribs.push(`ofs:${accessor.byteOffset}`);
             }
             const accRef = `accessor(${accAttribs.join(",")})`;
