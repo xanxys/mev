@@ -50,6 +50,8 @@ async function reduceMesh(model, target) {
             return;
         }
 
+        const vertexMergeTracker = new IndexMergeTracker();
+        
         const newTrisList = mesh.primitives.map(prim => {
             const vps = new Set(); // vix(small):vix(large)
             function encodeVPair(va, vb) {
@@ -72,7 +74,6 @@ async function reduceMesh(model, target) {
             // random picking
             const vpReductionOrder = selectRandom(vps, Math.floor(vps.size * (1 - target)));
 
-            const vertexMergeTracker = new IndexMergeTracker();
             for (const vp of vpReductionOrder) {
                 let [v0, v1] = decodeVPair(vp);
                 vertexMergeTracker.mergePair(v0, v1);
