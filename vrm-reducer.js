@@ -57,7 +57,7 @@ async function reduceMesh(model, target) {
                 return va < vb ? `${va}:${vb}` : `${vb}:${va}`;
             }
             function decodeVPair(vp) {
-                return vp.split(':').map(parseInt);
+                return vp.split(':').map(s => parseInt(s));
             }
 
             // TODO: primitive type, triangles
@@ -169,9 +169,8 @@ function writeIndexBuffer(model, accId, data) {
     const maxVal = Math.max(...data);
     console.assert(maxVal <= 0xffffffff);
 
-    let ty = "u32";
+    let ty;
     let blob = new ArrayBuffer(data.length * 4);
-    /*
     if (maxVal <= 0xff) {
         ty = "u8";
         blob = new ArrayBuffer(data.length * 1);
@@ -182,7 +181,6 @@ function writeIndexBuffer(model, accId, data) {
         ty = "u32";
         blob = new ArrayBuffer(data.length * 4);
     }
-    */
 
     const blobView = new DataView(blob);
     for (let i = 0; i < data.length; i++) {
