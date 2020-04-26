@@ -883,31 +883,14 @@ async function removeUnusedAccessors(model) {
     const deps = new VrmDependency(model);
     const usedIds = deps.getDirectlyUsedAccessors();
 
-    // Execute deletion.
-    const accIdChanges = new Map(); // key=old accId value=new accId
-    let newAccs = [];
-    let newAccId = 0;
-    model.gltf.accessors.forEach((acc, accId) => {
-        if (!usedIds.has(accId)) {
-            return;
-        }
-        accIdChanges.set(accId, newAccId);
-        newAccs.push(acc);
-        newAccId++;
-    });
-    model.gltf.accessors = newAccs;
-    console.log("accessor id changes", accIdChanges);
-
-    // Apply changes.
+    const accPacking = new ArrayPacking(usedIds, model.gltf.accessors.length);
+    model.gltf.accessors = accPacking.apply(model.gltf.accessors);
     model.gltf.meshes.forEach(mesh => {    
         mesh.primitives.forEach(prim => {
-            console.assert(accIdChanges.has(prim.indices));
-            prim.indices = accIdChanges.get(prim.indices);
-        
+            prim.indices = accPacking.convert(prim.indices);
             const newAttribs = {};
             Object.entries(prim.attributes).forEach(([attribName, accId]) => {
-                console.assert(accIdChanges.has(accId));
-                newAttribs[attribName] = accIdChanges.get(accId);
+                newAttribs[attribName] = accPacking.convert(accId);
             });
             prim.attributes = newAttribs;
 
@@ -915,8 +898,7 @@ async function removeUnusedAccessors(model) {
                 prim.targets = prim.targets.map(target => {
                     const newTarget = {};
                     Object.entries(target).forEach(([attribName, accId]) => {
-                        console.assert(accIdChanges.has(accId));
-                        newTarget[attribName] = accIdChanges.get(accId);
+                        newTarget[attribName] = accPacking.convert(accId);
                     });
                     return newTarget;
                 });
@@ -924,8 +906,7 @@ async function removeUnusedAccessors(model) {
         });
     });
     model.gltf.skins.forEach(skin => {
-        console.assert(accIdChanges.has(skin.inverseBindMatrices));
-        skin.inverseBindMatrices = accIdChanges.get(skin.inverseBindMatrices);
+        skin.inverseBindMatrices = accPacking.convert(skin.inverseBindMatrices);
     });
 }
 
@@ -934,78 +915,41 @@ async function removeUnusedAccessors(model) {
  */
 async function removeUnusedTextures(model) {
     const deps = new VrmDependency(model);
-    const usedIds = deps.getDirectlyUsedTextures();
+    const texPacking = new ArrayPacking(deps.getDirectlyUsedTextures(), model.gltf.textures.length);
 
-    // Execute deletion.
-    const texIdChanges = new Map(); // key=old viewid value=new viewid
-    let newTexs = [];
-    let newTexId = 0;
-    model.gltf.textures.forEach((tex, texId) => {
-        if (!usedIds.has(texId)) {
-            return;
-        }
-        texIdChanges.set(texId, newTexId);
-        newTexs.push(tex);
-        newTexId++;
-    });
-    model.gltf.textures = newTexs;
-    console.log("texture id changes", texIdChanges);
-
-    // Apply changes.
+    model.gltf.textures = texPacking.apply(model.gltf.textures);
     if (model.gltf.extensions.VRM.meta && model.gltf.extensions.VRM.meta.texture !== undefined) {
-        console.assert(texIdChanges.has(model.gltf.extensions.VRM.meta.texture));
-        model.gltf.extensions.VRM.meta.texture = texIdChanges.get(model.gltf.extensions.VRM.meta.texture);
+        model.gltf.extensions.VRM.meta.texture = texPacking.convert(model.gltf.extensions.VRM.meta.texture);
     }
     model.gltf.materials.forEach((mat, matId) => {
         const matProps = model.gltf.extensions.VRM.materialProperties;
         if (matProps && matId < matProps.length) {
             Object.entries(matProps[matId].textureProperties).forEach(([propName, texId]) => {
-                console.assert(texIdChanges.has(texId));
-                matProps[matId].textureProperties[propName] = texIdChanges.get(texId);
+                matProps[matId].textureProperties[propName] = texPacking.convert(texId);
             });
         }
 
         if (mat.pbrMetallicRoughness && mat.pbrMetallicRoughness.baseColorTexture) {
             const texId = mat.pbrMetallicRoughness.baseColorTexture.index;
-            console.assert(texIdChanges.has(texId));
-            mat.pbrMetallicRoughness.baseColorTexture.index = texIdChanges.get(texId);
+            mat.pbrMetallicRoughness.baseColorTexture.index = texPacking.convert(texId);
         }
         if (mat.pbrMetallicRoughness && mat.pbrMetallicRoughness.metallicRoughnessTexture) {
             const texId = mat.pbrMetallicRoughness.metallicRoughnessTexture.index;
-            console.assert(texIdChanges.has(texId));
-            mat.pbrMetallicRoughness.metallicRoughnessTexture.index = texIdChanges.get(texId);
+            mat.pbrMetallicRoughness.metallicRoughnessTexture.index = texPacking.convert(texId);
         }
         if (mat.emissiveTexture) {
             const texId = mat.emissiveTexture.index;
-            console.assert(texIdChanges.has(texId));
-            mat.emissiveTexture.index = texIdChanges.get(texId);
+            mat.emissiveTexture.index = texPacking.convert(texId);
         }
     });
 }
 
 async function removeUnusedImages(model) {
     const deps = new VrmDependency(model);
-    const usedIds = deps.getDirectlyUsedImages();
-
-    // Execute deletion.
-    const imgIdChanges = new Map(); // key=old viewid value=new viewid
-    let newImgs = [];
-    let newImgId = 0;
-    model.gltf.images.forEach((img, imgId) => {
-        if (!usedIds.has(imgId)) {
-            return;
-        }
-        imgIdChanges.set(imgId, newImgId);
-        newImgs.push(img);
-        newImgId++;
-    });
-    model.gltf.images = newImgs;
-    console.log("image id changes", imgIdChanges);
-
-    // Apply changes.
-    model.gltf.textures.forEach((tex, texId) => {
-        console.assert(imgIdChanges.has(tex.source));
-        tex.source = imgIdChanges.get(tex.source);
+    const imgPacking = new ArrayPacking(deps.getDirectlyUsedImages(), model.gltf.images.length);
+    model.gltf.images = imgPacking.apply(model.gltf.images);
+    model.gltf.textures.forEach(tex => {
+        tex.source = imgPacking.convert(tex.source);
     });
 }
 
@@ -1014,33 +958,13 @@ async function removeUnusedImages(model) {
  */
 async function removeUnusedBufferViews(model) {
     const deps = new VrmDependency(model);
-    const usedIds = deps.getDirectlyUsedBuffers();
-
-    // Execute deletion.
-    const viewIdChanges = new Map(); // key=old viewid value=new viewid
-    let newViews = [];
-    let newViewId = 0;
-    model.gltf.bufferViews.forEach((view, viewId) => {
-        if (!usedIds.has(viewId)) {
-            return;
-        }
-        viewIdChanges.set(viewId, newViewId);
-        newViews.push(view);
-        newViewId++;
-    });
-    model.gltf.bufferViews = newViews;
-    console.log("bufferView id changes", viewIdChanges);
-
-    // Apply changes.
+    const bvPacking = new ArrayPacking(deps.getDirectlyUsedBuffers(), model.gltf.bufferViews.length);
+    model.gltf.bufferViews = bvPacking.apply(model.gltf.bufferViews);
     model.gltf.images.forEach(img => {
-        const oldViewId = img.bufferView;
-        console.assert(viewIdChanges.has(oldViewId));
-        img.bufferView = viewIdChanges.get(oldViewId);
+        img.bufferView = bvPacking.convert(img.bufferView);
     });
     model.gltf.accessors.forEach(accessor => {
-        const oldViewId = accessor.bufferView;
-        console.assert(viewIdChanges.has(oldViewId));
-        accessor.bufferView = viewIdChanges.get(oldViewId);
+        accessor.bufferView = bvPacking.convert(accessor.bufferView);
     });
 }
 
