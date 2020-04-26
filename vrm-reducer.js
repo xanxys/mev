@@ -193,6 +193,8 @@ function writeIndexBuffer(model, accId, data) {
     }
     acc.componentType = TYPE_FMAP[ty];
     acc.count = data.length;
+    delete acc.byteOffset;
+    delete acc.sparse;
     model.setBufferViewData(acc.bufferView, blob);
 }
 
@@ -204,19 +206,21 @@ function writeIndexBuffer(model, accId, data) {
  */
 function readVecBuffer(model, accId) {
     const acc = model.gltf.accessors[accId];
-    console.assert(acc.type === "VEC3" || acc.type === "VEC2");
-    const vecDim = acc.type === "VEC3" ? 3 : 2;
+    console.assert(VEC_MAP[acc.type] !== undefined);
+    const vecDim = VEC_MAP[acc.type];
     const blob = model._getBufferView(acc.bufferView);
     const blobView = new DataView(blob);
 
     const data = [];
     const ty = TYPE_RMAP[acc.componentType];
-    console.assert(ty === "f32");
+    console.assert(ty === "f32" || ty === "u16");
     for (let i = 0; i < acc.count; i++) {
         const v = [];
         for (let e = 0; e < vecDim; e++) {
             if (ty === "f32") {
                 v.push(blobView.getFloat32((i * vecDim + e) * 4, true));
+            } else if (ty === "u16") {
+                v.push(blobView.getUint16((i * vecDim + e) * 2, true));
             }
         }
         data.push(v);
@@ -224,8 +228,15 @@ function readVecBuffer(model, accId) {
     return data;
 }
 
+const VEC_MAP = {
+    "VEC2": 2,
+    "VEC3": 3,
+    "VEC4": 3,
+};
+
 /**
  * Mutate specified accessor (and associated buffer view).
+ * Keeps original type & componentType.
  * 
  * @param {VrmModel} model 
  * @param {number} accId 
@@ -235,21 +246,26 @@ function writeVecBuffer(model, accId, data) {
     const acc = model.gltf.accessors[accId];
     console.assert(data.length > 0);
     const vecDim = data[0].length;
-    console.assert((vecDim === 3 && acc.type === "VEC3") || (vecDim === 2 && acc.type === "VEC2"));
+    console.assert(VEC_MAP[acc.type] === vecDim);
     const ty = TYPE_RMAP[acc.componentType];
-    console.assert(ty === "f32");
+    console.assert(ty === "f32" || ty === "u16");
+    const componentSize = ty === "f32" ? 4 : 2;
 
-    const blob = new ArrayBuffer(data.length * 3 * 4);
+    const blob = new ArrayBuffer(data.length * vecDim * componentSize);
     const blobView = new DataView(blob);
     for (let i = 0; i < data.length; i++) {
         for (let e = 0; e < vecDim; e++) {
             if (ty === "f32") {
-                blobView.setFloat32((i * vecDim + e) * 4, data[i][e], true);
+                blobView.setFloat32((i * vecDim + e) * componentSize, data[i][e], true);
+            } else if (ty === "u16") {
+                blobView.setUint16((i * vecDim + e) * componentSize, data[i][e], true);
             }
         }
     }
     acc.count = data.length;
     // TODO: Set min, max
+    delete acc.byteOffset;
+    delete acc.sparse;
     model.setBufferViewData(acc.bufferView, blob);
 }
 
