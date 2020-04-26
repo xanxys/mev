@@ -8,8 +8,6 @@ import { VrmDependency, TYPE_RMAP, TYPE_FMAP } from "./vrm-core/deps.js";
  */
 export async function reduceVrm(model) {
     /* TODO
-    mem reduction
-     - vertex reduction
     GPU reduction
      - mesh / primitive merging, atlasing
     compressed size reduction
@@ -45,8 +43,15 @@ async function reduceMesh(model, target) {
 
     }
 
+    const processedIndicesAccIds = new Set();
+
     model.gltf.meshes.forEach(mesh => {
         mesh.primitives.forEach(prim => {
+            if (processedIndicesAccIds.has(prim.indices)) {
+                return; // multiple primitives sharing same buffer (most data)
+            }
+            processedIndicesAccIds.add(prim.indices);
+
             const vps = new Set(); // vix(small):vix(large)
             function encodeVPair(va, vb) {
                 return va < vb ? `${va}:${vb}` : `${vb}:${va}`;
@@ -109,12 +114,10 @@ async function reduceMesh(model, target) {
             }
             console.assert(newTris.length <= tris.length);
 
-            const vertexPacking = new ArrayPacking(new Set(newTris),  numVertices);
-            newTris = newTris.map(v => vertexPacking.convert(v));
-            writeIndexBuffer(model, prim.indices, newTris);
+            const vertexPacking = new ArrayPacking(new Set(newTris), numVertices);
+            writeIndexBuffer(model, prim.indices, newTris.map(v => vertexPacking.convert(v)));
             Object.entries(prim.attributes).forEach(
                 ([_, accId]) => writeVecBuffer(model, accId, vertexPacking.apply(readVecBuffer(model, accId))));
-            
             if (prim.targets !== undefined) {
                 prim.targets.forEach(target => {
                     Object.entries(target).forEach(
@@ -231,7 +234,7 @@ function readVecBuffer(model, accId) {
 const VEC_MAP = {
     "VEC2": 2,
     "VEC3": 3,
-    "VEC4": 3,
+    "VEC4": 4,
 };
 
 /**
@@ -281,7 +284,7 @@ class ArrayPacking {
         
         const mapping = new Map();
         let newIx = 0;
-        for (const oldIx of Array.from(usedIxs).sort()) {
+        for (const oldIx of Array.from(usedIxs).sort((a, b) => a - b)) {
             mapping.set(oldIx, newIx);
             newIx++;
         }
