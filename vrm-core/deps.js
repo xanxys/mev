@@ -75,7 +75,7 @@ export class VrmDependency {
             }
             const referencePrim = mesh.primitives[0];
     
-            if (mesh.primitives.every(prim => prim.indices === referencePrim.indices)) {
+            if (mesh.primitives.every(prim => prim.indices === referencePrim.indices) && mesh.primitives.length > 1) {
                 multimapAdd(accessorUsage, referencePrim.indices, `mesh(${mesh.name}).prim[*].indices`);
             } else {
                 mesh.primitives.forEach((prim, primId) => {
@@ -83,7 +83,7 @@ export class VrmDependency {
                 });
             }
     
-            if (mesh.primitives.every(prim => sameObject(prim.attributes, referencePrim.attributes))) {
+            if (mesh.primitives.every(prim => sameObject(prim.attributes, referencePrim.attributes)) && mesh.primitives.length > 1) {
                 Object.entries(referencePrim.attributes).forEach(([attribName, accId]) => {
                     multimapAdd(accessorUsage, accId, `mesh(${mesh.name}).prim[*].${attribName}`);
                 });

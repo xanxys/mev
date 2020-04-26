@@ -20,7 +20,7 @@ export async function reduceVrm(model) {
     await extremeResizeTexture(model, 128);
     await stripAllEmotions(model);
     await removeUnusedMorphs(model);
-    await reduceMesh(model, 0.1);
+    await reduceMesh(model, 0.5);
     await removeUnusedTextures(model);
     await removeUnusedImages(model);
     await removeUnusedAccessors(model);
@@ -43,15 +43,14 @@ async function reduceMesh(model, target) {
 
     }
 
-    const processedIndicesAccIds = new Set();
-
+    // index buffer (multiple) -> vertex attribs
     model.gltf.meshes.forEach(mesh => {
-        mesh.primitives.forEach(prim => {
-            if (processedIndicesAccIds.has(prim.indices)) {
-                return; // multiple primitives sharing same buffer (most data)
-            }
-            processedIndicesAccIds.add(prim.indices);
+        const numVertices = model.gltf.accessors[mesh.primitives[0].attributes.POSITION].count;
+        if (numVertices <= 3) {
+            return;
+        }
 
+        const newTrisList = mesh.primitives.map(prim => {
             const vps = new Set(); // vix(small):vix(large)
             function encodeVPair(va, vb) {
                 return va < vb ? `${va}:${vb}` : `${vb}:${va}`;
@@ -59,9 +58,6 @@ async function reduceMesh(model, target) {
             function decodeVPair(vp) {
                 return vp.split(':').map(s => parseInt(s));
             }
-
-            // TODO: primitive type, triangles
-            const numVertices = model.gltf.accessors[prim.attributes.POSITION].count;
 
             const tris = readIndexBuffer(model, prim.indices);
             console.assert(tris.length % 3 === 0);
@@ -113,8 +109,15 @@ async function reduceMesh(model, target) {
                 triKeys.add(key);
             }
             console.assert(newTris.length <= tris.length);
+            return newTris;
+        });
+        
+        const allvs = new Set();
+        newTrisList.forEach(tris => tris.forEach(v => allvs.add(v)));
+        const vertexPacking = new ArrayPacking(allvs, numVertices);
 
-            const vertexPacking = new ArrayPacking(new Set(newTris), numVertices);
+        newTrisList.forEach((newTris, primIx) => {
+            const prim = mesh.primitives[primIx];
             writeIndexBuffer(model, prim.indices, newTris.map(v => vertexPacking.convert(v)));
             Object.entries(prim.attributes).forEach(
                 ([_, accId]) => writeVecBuffer(model, accId, vertexPacking.apply(readVecBuffer(model, accId))));
