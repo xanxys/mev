@@ -11,6 +11,16 @@ export const TYPE_RMAP = {
     5126: "f32",
 };
 
+export const TYPE_FMAP = {
+    "i8": 5120,
+    "u8": 5121,
+    "i16": 5122,
+    "u16": 5123,
+    "i32": 5124,
+    "u32": 5125,
+    "f32": 5126,
+};
+
 export class VrmDependency {
     /**
      * @param {VrmModel} vrmModel

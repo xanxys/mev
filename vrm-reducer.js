@@ -1,6 +1,6 @@
 // ES6
 import { VrmModel } from "./vrm-core/vrm.js";
-import { VrmDependency, TYPE_RMAP } from "./vrm-core/deps.js";
+import { VrmDependency, TYPE_RMAP, TYPE_FMAP } from "./vrm-core/deps.js";
 
 /**
  * @param {VrmModel} model: will be mutated
@@ -57,7 +57,6 @@ async function reduceMesh(model, target) {
 
             // TODO: primitive type, triangles
             const numVertices = model.gltf.accessors[prim.attributes.POSITION].count;
-            prim.targets;
 
             const tris = readIndexBuffer(model, prim.indices);
             console.assert(tris.length % 3 === 0);
@@ -111,12 +110,17 @@ async function reduceMesh(model, target) {
             console.assert(newTris.length <= tris.length);
 
             const vertexPacking = new ArrayPacking(new Set(newTris),  numVertices);
-            newTris = newTris.map(vertexPacking.convert);
-            //writeIndexBuffer(model, newTris); // ???
-
-
-            //vertexPacking.apply
-
+            newTris = newTris.map(v => vertexPacking.convert(v));
+            writeIndexBuffer(model, prim.indices, newTris);
+            Object.entries(prim.attributes).forEach(
+                ([_, accId]) => writeVecBuffer(model, accId, vertexPacking.apply(readVecBuffer(model, accId))));
+            
+            if (prim.targets !== undefined) {
+                prim.targets.forEach(target => {
+                    Object.entries(target).forEach(
+                        ([_, accId]) => writeVecBuffer(model, accId, vertexPacking.apply(readVecBuffer(model, accId))));
+                });    
+            }
         });
     });
 }
@@ -134,7 +138,7 @@ function readIndexBuffer(model, accId) {
     const blobView = new DataView(blob);
 
     const data = new Uint32Array(acc.count);
-    const ty = TYPE_RMAP[acc.type];
+    const ty = TYPE_RMAP[acc.componentType];
     console.assert(ty === "u8" || ty === "u16" || ty === "u32");
     for (let i = 0; i < acc.count; i++) {
         if (ty === "u8") {
@@ -149,8 +153,104 @@ function readIndexBuffer(model, accId) {
 }
 
 
-function writeIndexBuffer(model, ixBuffer) {
+/**
+ * @param {VrmModel} model
+ * @param {number} accId
+ * @param {number[]} data
+ */
+function writeIndexBuffer(model, accId, data) {
+    console.assert(data.length > 0);
+    const acc = model.gltf.accessors[accId];
+    console.assert(acc.type === "SCALAR");
 
+    const maxVal = Math.max(...data);
+    console.assert(maxVal <= 0xffffffff);
+
+    let ty = "u32";
+    let blob = new ArrayBuffer(data.length * 4);
+    /*
+    if (maxVal <= 0xff) {
+        ty = "u8";
+        blob = new ArrayBuffer(data.length * 1);
+    } else if (maxVal <= 0xffff) {
+        ty = "u16";
+        blob = new ArrayBuffer(data.length * 2);
+    } else if (maxVal <= 0xffffffff) {
+        ty = "u32";
+        blob = new ArrayBuffer(data.length * 4);
+    }
+    */
+
+    const blobView = new DataView(blob);
+    for (let i = 0; i < data.length; i++) {
+        if (ty === "u8") {
+            blobView.setUint8(i, data[i]);
+        } else if (ty === "u16") {
+            blobView.setUint16(i * 2, data[i], true);
+        } else if (ty === "u32") {
+            blobView.setUint32(i * 4, data[i], true);
+        }
+    }
+    acc.componentType = TYPE_FMAP[ty];
+    acc.count = data.length;
+    model.setBufferViewData(acc.bufferView, blob);
+}
+
+
+/**
+ * @param {VrmModel} model
+ * @param {number} accId
+ * @returns {number[][]}
+ */
+function readVecBuffer(model, accId) {
+    const acc = model.gltf.accessors[accId];
+    console.assert(acc.type === "VEC3" || acc.type === "VEC2");
+    const vecDim = acc.type === "VEC3" ? 3 : 2;
+    const blob = model._getBufferView(acc.bufferView);
+    const blobView = new DataView(blob);
+
+    const data = [];
+    const ty = TYPE_RMAP[acc.componentType];
+    console.assert(ty === "f32");
+    for (let i = 0; i < acc.count; i++) {
+        const v = [];
+        for (let e = 0; e < vecDim; e++) {
+            if (ty === "f32") {
+                v.push(blobView.getFloat32((i * vecDim + e) * 4, true));
+            }
+        }
+        data.push(v);
+    }
+    return data;
+}
+
+/**
+ * Mutate specified accessor (and associated buffer view).
+ * 
+ * @param {VrmModel} model 
+ * @param {number} accId 
+ * @param {number[][]} data 
+ */
+function writeVecBuffer(model, accId, data) {
+    const acc = model.gltf.accessors[accId];
+    console.assert(data.length > 0);
+    const vecDim = data[0].length;
+    console.assert((vecDim === 3 && acc.type === "VEC3") || (vecDim === 2 && acc.type === "VEC2"));
+    const ty = TYPE_RMAP[acc.componentType];
+    console.assert(ty === "f32");
+
+    const blob = new ArrayBuffer(data.length * 3 * 4);
+    const blobView = new DataView(blob);
+    for (let i = 0; i < data.length; i++) {
+        for (let e = 0; e < vecDim; e++) {
+            if (ty === "f32") {
+                blobView.setFloat32((i * vecDim + e) * 4, data[i][e], true);
+            }
+        }
+    }
+    acc.count = data.length;
+    // TODO: Set min, max
+    model.setBufferViewData(acc.bufferView, blob);
 }
 
 class ArrayPacking {
@@ -202,6 +302,11 @@ class IndexMergeTracker {
     mergePair(to, from) {
         to = this.resolve(to);
         from = this.resolve(from);
+        if (to === from) {
+            // it's possible they're already merged indirectly.
+            // (e.g. after mergePair(0, 1), mergePair(1, 2), resolve(1) == resolve(2) == 0)
+            return;
+        }
         this.mapping.set(from, to);
     }
 
