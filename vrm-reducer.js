@@ -441,7 +441,7 @@ async function deleteNonEssentialBones(model) {
         const selfIsFree = !lockedNodes.has(nodeIx);
         const childrenAreFree = (node.children || []).map(indexFreeNodes).every(x => x);
 
-        const isFree= selfIsFree & childrenAreFree;
+        const isFree= selfIsFree && childrenAreFree;
         if (isFree) {
             freeNodes.add(nodeIx);
         }
