@@ -20,7 +20,7 @@ export async function reduceVrm(model) {
     await extremeResizeTexture(model, 128);
     await stripAllEmotions(model);
     await removeUnusedMorphs(model);
-    await reduceMesh(model, 0.5);
+    await reduceMesh(model, 0.1);
     await removeUnusedTextures(model);
     await removeUnusedImages(model);
     await removeUnusedAccessors(model);
@@ -28,6 +28,113 @@ export async function reduceVrm(model) {
     // await removeAllNames(model);
     model.repackBuffer();
     return null;
+}
+
+class MinHeap {
+    constructor() {
+        this.tree = new Array();
+    }
+
+    /**
+     * @param {any} obj
+     * @param {number} val
+     */
+    insert(obj, val) {
+        const ix = this.tree.length;
+        this.tree.push([obj, val]);
+        this._fix_invariance_up(ix);
+    }
+
+    /**
+     * @param {number} ix
+     */
+    _fix_invariance_up(ix) {
+        while (ix !== 0) {
+            const pix = this._parent(ix);
+            const pv = this.tree[pix][1];
+            const cv = this.tree[ix][1];
+            if (pv <= cv) {
+                return;
+            }
+            this._swap(ix, pix);
+            ix = pix;
+        }
+    }
+
+    _fix_invariance_down() {
+        let ix = 0;
+        while (true) {
+            const lix = 2 * ix + 1;
+            const rix = 2 * ix + 2;
+            if (lix >= this.tree.length) {
+                // available children: none
+                return;
+            }
+
+            const cv = this.tree[ix][1];
+            if (rix >= this.tree.length) {
+                // available child: left
+                const lv = this.tree[lix][1];
+                if (cv <= lv) {
+                    return;
+                }
+                this._swap(ix, lix);
+                ix = lix;
+            } else {
+                // available children: left & right
+                const lv = this.tree[lix][1];
+                const rv = this.tree[rix][1];
+                if (cv <= lv && cv <= rv) {
+                    return;
+                }
+
+                if (lv < rv) {
+                    this._swap(ix, lix);
+                    ix = lix;
+                } else {
+                    this._swap(ix, rix);
+                    ix = rix;
+                }
+            }
+        }
+    }
+
+    _swap(i0, i1) {
+        const e0 = this.tree[i0];
+        const e1 = this.tree[i1];
+        this.tree[i0] = e1;
+        this.tree[i1] = e0;
+    }
+
+    /**
+     * @param {number} ix
+     * @returns {number} parent index of ix
+     */
+    _parent(ix) {
+        return ix === 0 ? 0 : Math.floor((ix - 1) / 2);
+    }
+
+    size() {
+        return this.tree.length;
+    }
+
+    /**
+     * @returns {[any, number]}
+     */
+    popmin() {
+        if (this.tree.length === 0) {
+            throw "popmin() cannot be used for empty MinHeap";
+        }
+        const melem = this.tree[0];
+        if (this.tree.length === 1) {
+            this.tree = [];
+            return melem;
+        }
+        this.tree[0] = this.tree[this.tree.length - 1];
+        this.tree.splice(-1);
+        this._fix_invariance_down();
+        return melem;
+    }
 }
 
 /**
@@ -40,14 +147,34 @@ export async function reduceVrm(model) {
  */
 async function reduceMesh(model, target) {
     function initErrorMatrix() {
-        return new Float32Array(16); // row major (m11, m12, m13, m14, m21, ...)
+        return new Float64Array(16); // row major (m11, m12, m13, m14, m21, ...)
     }
     function accumErrorMatrix(m, plane) {
+        console.assert(m.length === 16);
+        console.assert(plane.length === 4);
+
         for (let i = 0; i < 4; i++) {
             for (let j = 0; j < 4; j++) {
                 m[i * 4 + j] += plane[i] * plane[j];
             }
         }
+    }
+    function getError(m, v) {
+        console.assert(m.length === 16);
+        console.assert(v.length === 3);
+        v = [v[0], v[1], v[2], 1];
+
+        const u = [0, 0, 0, 0]; // <- mul(m, v)
+        for (let i = 0; i < 4; i++) {
+            for (let j = 0; j < 4; j++) {
+                u[i] += m[i * 4 + j] * v[j];
+            }
+        }
+        let s = 0; // <- dot(v, u)
+        for (let i = 0; i < 4; i++) {
+            s += v[i] * u[i];
+        }
+        return Math.max(s, 0); // since this is quadaratic op, result must be >=0 (negative result is due to numerical error)
     }
 
     // assuming CCW triangle
@@ -108,8 +235,22 @@ async function reduceMesh(model, target) {
                 return vp.split(':').map(s => parseInt(s));
             }
 
+            const pos = readVecBuffer(model, prim.attributes.POSITION);
             const tris = readIndexBuffer(model, prim.indices);
             console.assert(tris.length % 3 === 0);
+
+            function computeVPError(vix0, vix1) {
+                const mcombined = new Float64Array(16);
+                const m0 = vertexErrorMatrix.get(vix0);
+                const m1 = vertexErrorMatrix.get(vix1);
+                for (let i = 0; i < 16; i++) {
+                    mcombined[i] = m0[i] + m1[i];
+                }
+                // TODO: Solve for quadratic minimum.
+                return Math.min(getError(mcombined, pos[vix0]), getError(mcombined, pos[vix1]));
+            }
+
+            const vpReductionHeap = new MinHeap();
             for (let i = 0; i < tris.length; i+=3) {
                 const vix0 = tris[i + 0];
                 const vix1 = tris[i + 1];
@@ -117,10 +258,21 @@ async function reduceMesh(model, target) {
                 vps.add(encodeVPair(vix0, vix1));
                 vps.add(encodeVPair(vix1, vix2));
                 vps.add(encodeVPair(vix2, vix0));
+                vpReductionHeap.insert(encodeVPair(vix0, vix1), computeVPError(vix0, vix1));
+                vpReductionHeap.insert(encodeVPair(vix1, vix2), computeVPError(vix1, vix2));
+                vpReductionHeap.insert(encodeVPair(vix2, vix0), computeVPError(vix2, vix0));
             }
+            console.log("VPRedH", vpReductionHeap);
 
-            // random picking
-            const vpReductionOrder = selectRandom(vps, Math.floor(vps.size * (1 - target)));
+            // TODO: Re-compute error after each reduction.
+            const vpReductionOrder = [];
+            for (let i = 0; i < Math.floor(vps.size * (1 - target)); i++) {
+                vpReductionOrder.push(vpReductionHeap.popmin()[0]);
+            }
+            
+
+            // baseline: random picking
+            // const vpReductionOrder = selectRandom(vps, Math.floor(vps.size * (1 - target)));
 
             for (const vp of vpReductionOrder) {
                 let [v0, v1] = decodeVPair(vp);
