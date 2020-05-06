@@ -1,4 +1,4 @@
-import { MinHeap } from "./vrm-reducer.js";
+import { MinHeap, setSub } from "./algorithm.js";
 
 describe('MinHeap', function () {
     it("insertion and size", function() {
@@ -31,5 +31,14 @@ describe('MinHeap', function () {
         chai.assert.deepEqual(heap.popmin(), ["C", 1]);
         chai.assert.deepEqual(heap.popmin(), ["B", 2]);
         chai.assert.deepEqual(heap.popmin(), ["A", 5]);
+    });
+});
+
+describe('set ops', function () {
+    it("setSub", function() {
+        const x = setSub(new Set([1, 2]), new Set([2, 3]));
+
+        chai.assert.equal(x.size, 1);
+        chai.assert.isTrue(x.has(1));
     });
 });

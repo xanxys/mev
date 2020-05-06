@@ -1,3 +1,4 @@
+"use strict";
 import { blendshapeToEmotionId } from '../mev-util.js';
 
 Vue.component(

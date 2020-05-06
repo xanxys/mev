@@ -1,7 +1,7 @@
 // ES6
 import { VrmModel } from './vrm-core/vrm.js';
 import { VrmRenderer } from './vrm-renderer.js';
-import { reduceVrm } from './vrm-reducer.js';
+import { reduceVrm } from './vrm-reducer/vrm-reducer.js';
 import { setupStartDialog } from './components/start-dialog.js';
 import { setupDetailsDialog } from './components/details-dialog.js';
 import { } from './components/menu-section-emotion.js';
