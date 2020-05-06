@@ -138,7 +138,7 @@ class MinHeap {
 }
 
 /**
- * TODO: implement VP selection optimization using:
+ * Reduces the number of triangles somewhat smartly.
  * "Surface Simplification Using Quadric Error Metrics" (1997)
  * https://www.cs.cmu.edu/~./garland/Papers/quadrics.pdf
  * 
@@ -276,6 +276,7 @@ async function reduceMesh(model, target) {
 
             for (const vp of vpReductionOrder) {
                 let [v0, v1] = decodeVPair(vp);
+                // TODO: Pick v0 or v1 that minimizes error.
                 vertexMergeTracker.mergePair(v0, v1);
             }
 
