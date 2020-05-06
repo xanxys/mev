@@ -30,7 +30,7 @@ export async function reduceVrm(model) {
     return null;
 }
 
-class MinHeap {
+export class MinHeap {
     constructor() {
         this.tree = new Array();
     }
