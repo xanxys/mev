@@ -39,8 +39,36 @@ export async function reduceVrm(model) {
  * @param {number} target number of vertices (0.3: reduce to 30% of vertices)
  */
 async function reduceMesh(model, target) {
-    function computeErrorMatrix() {
+    function initErrorMatrix() {
+        return new Float32Array(16); // row major (m11, m12, m13, m14, m21, ...)
+    }
+    function accumErrorMatrix(m, plane) {
+        for (let i = 0; i < 4; i++) {
+            for (let j = 0; j < 4; j++) {
+                m[i * 4 + j] += plane[i] * plane[j];
+            }
+        }
+    }
 
+    // assuming CCW triangle
+    function v3sub(a, b) {
+        return [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+    }
+    function v3normalize(a) {
+        const k = 1 / Math.sqrt(a[0] * a[0] + a[1] * a[1] + a[2] * a[2]);
+        return [a[0] * k, a[1] * k, a[2] * k];
+    }
+    function v3cross(a, b) {
+        return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+    }
+    function v3dot(a, b) {
+        return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    }
+    // returns [a,b,c,d] such that ax + by + cz + d = 0, |(a,b,c)| = 1
+    function computePlane(p0, p1, p2) {
+        const n = v3normalize(v3cross(v3sub(p1, p0), v3sub(p2, p0)));
+        const d = -v3dot(p0, n);
+        return [n[0], n[1], n[2], d];
     }
 
     // index buffer (multiple) -> vertex attribs
@@ -50,8 +78,27 @@ async function reduceMesh(model, target) {
             return;
         }
 
+        const vertexErrorMatrix = new Map(); // vix:error matrix
+        mesh.primitives.forEach(prim => {
+            const pos = readVecBuffer(model, prim.attributes.POSITION);
+
+            const tris = readIndexBuffer(model, prim.indices);
+            console.assert(tris.length % 3 === 0);
+            for (let i = 0; i < tris.length; i+=3) {
+                const vix0 = tris[i + 0];
+                const vix1 = tris[i + 1];
+                const vix2 = tris[i + 2];
+                const plane = computePlane(pos[vix0], pos[vix1], pos[vix2]);
+                for (const vix of [vix0, vix1, vix2]) {
+                    const m = vertexErrorMatrix.get(vix) ?? initErrorMatrix();
+                    accumErrorMatrix(m, plane);
+                    vertexErrorMatrix.set(vix, m);
+                }
+            }
+        });
+        console.log("vertex error matrix", vertexErrorMatrix);
+
         const vertexMergeTracker = new IndexMergeTracker();
-        
         const newTrisList = mesh.primitives.map(prim => {
             const vps = new Set(); // vix(small):vix(large)
             function encodeVPair(va, vb) {
@@ -71,6 +118,7 @@ async function reduceMesh(model, target) {
                 vps.add(encodeVPair(vix1, vix2));
                 vps.add(encodeVPair(vix2, vix0));
             }
+
             // random picking
             const vpReductionOrder = selectRandom(vps, Math.floor(vps.size * (1 - target)));
 
