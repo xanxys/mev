@@ -31,8 +31,7 @@ export class MinHeap {
         }
     }
 
-    _fix_invariance_down() {
-        let ix = 0;
+    _fix_invariance_down(ix) {
         while (true) {
             const lix = 2 * ix + 1;
             const rix = 2 * ix + 2;
@@ -102,7 +101,7 @@ export class MinHeap {
         }
         this.tree[0] = this.tree[this.tree.length - 1];
         this.tree.splice(-1);
-        this._fix_invariance_down();
+        this._fix_invariance_down(0);
         return melem;
     }
 }

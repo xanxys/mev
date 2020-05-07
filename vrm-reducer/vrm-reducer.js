@@ -21,7 +21,7 @@ export async function reduceVrm(model) {
     await extremeResizeTexture(model, 128);
     await stripAllEmotions(model);
     await removeUnusedMorphs(model);
-    await reduceMesh(model, 0.1);
+    await reduceMesh(model, 0.5);
     await removeUnusedTextures(model);
     await removeUnusedImages(model);
     await removeUnusedAccessors(model);
@@ -29,6 +29,18 @@ export async function reduceVrm(model) {
     // await removeAllNames(model);
     model.repackBuffer();
     return null;
+}
+
+
+/**
+ * @param {Map<any, any>} map to be mutated
+ * @param {any} k key
+ * @param {any[]} deltaVs
+ */
+function multimapAdd(map, k, ...deltaVs) {
+    let vs = map.get(k) || [];
+    vs.push(...deltaVs);
+    map.set(k, vs);
 }
 
 
@@ -70,6 +82,13 @@ async function reduceMesh(model, target) {
             s += v[i] * u[i];
         }
         return Math.max(s, 0); // since this is quadaratic op, result must be >=0 (negative result is due to numerical error)
+    }
+    function combineErrorMatrix(m0, m1) {
+        const mcombined = new Float64Array(16);
+        for (let i = 0; i < 16; i++) {
+            mcombined[i] = m0[i] + m1[i];
+        }
+        return mcombined;
     }
 
     // assuming CCW triangle
@@ -135,17 +154,19 @@ async function reduceMesh(model, target) {
             console.assert(tris.length % 3 === 0);
 
             function computeVPError(vix0, vix1) {
-                const mcombined = new Float64Array(16);
-                const m0 = vertexErrorMatrix.get(vix0);
-                const m1 = vertexErrorMatrix.get(vix1);
-                for (let i = 0; i < 16; i++) {
-                    mcombined[i] = m0[i] + m1[i];
-                }
+                const mcombined = combineErrorMatrix(vertexErrorMatrix.get(vix0), vertexErrorMatrix.get(vix1));
                 // TODO: Solve for quadratic minimum.
-                return Math.min(getError(mcombined, pos[vix0]), getError(mcombined, pos[vix1]));
+                const e0 = getError(mcombined, pos[vix0]);
+                const e1 = getError(mcombined, pos[vix1]);
+                if (e0 < e1) {
+                    return [e0, vix0];
+                } else {
+                    return [e1, vix1];
+                }
             }
 
             const vpReductionHeap = new MinHeap();
+            const vertexToVps = new Map();
             for (let i = 0; i < tris.length; i+=3) {
                 const vix0 = tris[i + 0];
                 const vix1 = tris[i + 1];
@@ -153,27 +174,64 @@ async function reduceMesh(model, target) {
                 vps.add(encodeVPair(vix0, vix1));
                 vps.add(encodeVPair(vix1, vix2));
                 vps.add(encodeVPair(vix2, vix0));
-                vpReductionHeap.insert(encodeVPair(vix0, vix1), computeVPError(vix0, vix1));
-                vpReductionHeap.insert(encodeVPair(vix1, vix2), computeVPError(vix1, vix2));
-                vpReductionHeap.insert(encodeVPair(vix2, vix0), computeVPError(vix2, vix0));
+                vpReductionHeap.insert(encodeVPair(vix0, vix1), computeVPError(vix0, vix1)[0]);
+                vpReductionHeap.insert(encodeVPair(vix1, vix2), computeVPError(vix1, vix2)[0]);
+                vpReductionHeap.insert(encodeVPair(vix2, vix0), computeVPError(vix2, vix0)[0]);
+
+                multimapAdd(vertexToVps, vix0, encodeVPair(vix0, vix1), encodeVPair(vix2, vix0));
+                multimapAdd(vertexToVps, vix1, encodeVPair(vix1, vix2), encodeVPair(vix0, vix1));
+                multimapAdd(vertexToVps, vix2, encodeVPair(vix2, vix0), encodeVPair(vix1, vix2));
             }
             console.log("VPRedH", vpReductionHeap);
 
             // TODO: Re-compute error after each reduction.
-            const vpReductionOrder = [];
             for (let i = 0; i < Math.floor(vps.size * (1 - target)); i++) {
-                vpReductionOrder.push(vpReductionHeap.popmin()[0]);
+                const vp = vpReductionHeap.popmin()[0];
+                let [v0, v1] = decodeVPair(vp);
+                v0 = vertexMergeTracker.resolve(v0);
+                v1 = vertexMergeTracker.resolve(v1);
+                if (v0 === v1) {
+                    continue; // VP candidate became degenerate due to previous VP collapses.
+                }
+
+                const [_, vdst] = computeVPError(v0, v1);
+                const vsrc = (vdst === v0) ? v1 : v0;
+
+                const mcombined = combineErrorMatrix(vertexErrorMatrix.get(v0), vertexErrorMatrix.get(v1));
+                vertexMergeTracker.mergePair(vdst, vsrc);
+                vertexErrorMatrix.set(vdst, mcombined);
+                multimapAdd(vertexToVps, vdst, ...(vertexToVps.get(vsrc) || []));
+
+                // Recompute error heap.
+                const affectedVps = new Set(vertexToVps.get(vdst) || []);
+                for (const vp of affectedVps) {
+                    let [v0, v1] = decodeVPair(vp);
+                    v0 = vertexMergeTracker.resolve(v0);
+                    v1 = vertexMergeTracker.resolve(v1);
+                    const [err, _] = computeVPError(v0, v1);
+
+                    // WARNING: This will result in O(V^2 log(V)) time.
+                    for (let eix = 0; eix < vpReductionHeap.size(); eix++) {
+                        const e = vpReductionHeap.tree[eix];
+                        if (affectedVps.has(e[0])) {
+                            if (e[1] < err) { // error nerve become smaller, that's why fix_down is enough.
+                                vpReductionHeap.tree[eix][1] = err;
+                                vpReductionHeap._fix_invariance_down(eix);
+                            }
+                            break;
+                        }
+                    }
+                }
             }
-            
 
             // baseline: random picking
-            // const vpReductionOrder = selectRandom(vps, Math.floor(vps.size * (1 - target)));
-
+            /*
+            const vpReductionOrder = selectRandom(vps, Math.floor(vps.size * (1 - target)));
             for (const vp of vpReductionOrder) {
                 let [v0, v1] = decodeVPair(vp);
-                // TODO: Pick v0 or v1 that minimizes error.
                 vertexMergeTracker.mergePair(v0, v1);
             }
+            */
 
             // remove degenerate tris
             // Encode triangle's identity, assuming cyclic symmetry. (but not allowing flipping)
