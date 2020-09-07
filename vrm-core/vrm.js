@@ -80,7 +80,9 @@ export class VrmModel {
         newByteBuffer.set(new Uint8Array(data), oldBuffer.byteLength);
 
         this.buffers[bufferIx] = newByteBuffer.buffer;
-        this.gltf.buffers[bufferIx] = newByteBuffer.byteLength;
+        this.gltf.buffers[bufferIx] = {
+            byteLength: newByteBuffer.byteLength
+        };
         this.version++;
         return {
             buffer: bufferIx,
@@ -114,6 +116,9 @@ export class VrmModel {
 
         this.buffers = [newBuffer.buffer];
         this.gltf.bufferViews = newBufferViews;
+        this.gltf.buffers = [{
+            byteLength: newBuffer.byteLength
+        }];
         this.version++;
 
         console.log("repack", preTotalSize, "->", totalSize);
