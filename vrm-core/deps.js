@@ -11,6 +11,16 @@ export const TYPE_RMAP = {
     5126: "f32",
 };
 
+export const TYPE_FMAP = {
+    "i8": 5120,
+    "u8": 5121,
+    "i16": 5122,
+    "u16": 5123,
+    "i32": 5124,
+    "u32": 5125,
+    "f32": 5126,
+};
+
 export class VrmDependency {
     /**
      * @param {VrmModel} vrmModel
@@ -65,7 +75,7 @@ export class VrmDependency {
             }
             const referencePrim = mesh.primitives[0];
     
-            if (mesh.primitives.every(prim => prim.indices === referencePrim.indices)) {
+            if (mesh.primitives.every(prim => prim.indices === referencePrim.indices) && mesh.primitives.length > 1) {
                 multimapAdd(accessorUsage, referencePrim.indices, `mesh(${mesh.name}).prim[*].indices`);
             } else {
                 mesh.primitives.forEach((prim, primId) => {
@@ -73,7 +83,7 @@ export class VrmDependency {
                 });
             }
     
-            if (mesh.primitives.every(prim => sameObject(prim.attributes, referencePrim.attributes))) {
+            if (mesh.primitives.every(prim => sameObject(prim.attributes, referencePrim.attributes)) && mesh.primitives.length > 1) {
                 Object.entries(referencePrim.attributes).forEach(([attribName, accId]) => {
                     multimapAdd(accessorUsage, accId, `mesh(${mesh.name}).prim[*].${attribName}`);
                 });
@@ -116,7 +126,7 @@ export class VrmDependency {
             const accAttribs = [];
             accAttribs.push(`${accessor.type}<${TYPE_RMAP[accessor.componentType]}>`);
             accAttribs.push(`len:${accessor.count}`);
-            if (accessor.byteOffset !== 0) {
+            if (accessor.byteOffset !== undefined && accessor.byteOffset !== 0) {
                 accAttribs.push(`ofs:${accessor.byteOffset}`);
             }
             const accRef = `accessor(${accAttribs.join(",")})`;
@@ -159,6 +169,11 @@ export class VrmDependency {
     }
 }
 
+/**
+ * @param {Map<any, any>} map to be mutated
+ * @param {any} k key
+ * @param {any[]} deltaVs
+ */
 function multimapAdd(map, k, ...deltaVs) {
     let vs = map.get(k) || [];
     vs.push(...deltaVs);

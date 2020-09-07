@@ -1,24 +1,23 @@
 <!DOCTYPE html>
 <html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Mocha Tests</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="https://unpkg.com/mocha/mocha.css" />
+  </head>
+  <body>
+    <div id="mocha"></div>
 
-<head>
-  <meta chartset="utf-8">
-  <title>me/v - tests</title>
-  <link rel="stylesheet" href="https://code.jquery.com/qunit/qunit-2.9.2.css">
-</head>
+    <script src="https://unpkg.com/chai@4.1.2/chai.js"></script>
+    <script src="https://unpkg.com/mocha@4.0.1/mocha.js"></script>
 
-<body>
-  <div id="qunit"></div>
-  <div id="qunit-fixture"></div>
-  <script src="https://code.jquery.com/qunit/qunit-2.9.2.js"></script>
-
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/103/three.js"
-    integrity="sha256-Dz4QEGvodtXoy6gQW91o97WHBVvVXj7WsVA2LOUigbs=" crossorigin="anonymous"></script>
-  <script src="./third_party/three_gltf_loader.js"></script>
-  <script src="./third_party/three_gltf_exporter.js"></script>
-  <script src="./third_party/zlib.js"></script>
-  <script src="./third_party/three_fbx_loader.js"></script>
-  <script type="module" src="./vrm-test.js"></script>
-</body>
-
+    <script>mocha.setup('bdd')</script>
+    <script type="module" src="vrm-reducer/algorithm.test.js"></script>
+    <script type="module" class="mocha-init">
+      mocha.checkLeaks();
+      mocha.globals(['__VUE_DEVTOOLS_TOAST__']);
+      mocha.run();
+    </script>
+  </body>
 </html>

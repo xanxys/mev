@@ -1,7 +1,7 @@
 // ES6
 import { VrmModel } from './vrm-core/vrm.js';
 import { VrmRenderer } from './vrm-renderer.js';
-import { reduceVrm } from './vrm-reducer.js';
+import { reduceVrm } from './vrm-reducer/vrm-reducer.js';
 import { setupStartDialog } from './components/start-dialog.js';
 import { setupDetailsDialog } from './components/details-dialog.js';
 import { } from './components/menu-section-emotion.js';
@@ -112,7 +112,6 @@ class MevApplication {
             el: '#vue_menu',
             data: {
                 // Global
-                isDev: (window.location.hostname === "127.0.0.1" && !window.location.href.endsWith("?prd")),
                 startedLoading: false,
                 vrmRoot: null, // VrmModel
 
@@ -210,6 +209,13 @@ class MevApplication {
                 }
             },
             computed: {
+                isDev: function() {
+                    if (window.location.hostname === "127.0.0.1") {
+                        return !window.location.href.endsWith("?prd");
+                    } else {
+                        return window.location.href.endsWith("?dev");
+                    }
+                },
                 // Toolbar & global pane state.
                 toolbarTitle: function () {
                     switch (this.currentPane) {

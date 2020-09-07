@@ -151,7 +151,7 @@ export class VrmModel {
 
     /**
      * 
-     * @param {number} bufferiewIx: glTF bufferView index
+     * @param {number} bufferViewIx: glTF bufferView index
      * @param {ArrayBuffer} newData: new buffer data
      */
     setBufferData(bufferViewIx, newData) {
@@ -172,6 +172,10 @@ export class VrmModel {
         this.version += 1;
     }
 
+    /**
+     * @param {number} imageId
+     * @returns {string}
+     */
     getImageAsDataUrl(imageId) {
         const img = this.gltf.images[imageId];
         const data = this._getBufferView(img.bufferView);
@@ -185,7 +189,7 @@ export class VrmModel {
     }
 
     /**
-     * @param {number} bufferViewOx: glTF bufferView index
+     * @param {number} bufferViewIx: glTF bufferView index
      * @returns {ArrayBuffer}: immutable blob slice
      */
     _getBufferView(bufferViewIx) {

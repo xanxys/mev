@@ -1,3 +1,5 @@
+"use strict";
+
 Vue.component(
     "menu-section-image", {
         template: "#menu_section_image",
