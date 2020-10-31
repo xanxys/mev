@@ -17,6 +17,12 @@
     box-shadow: none;
 }
 
+.floating_button:focus {
+    border: none;
+    box-shadow: none;
+    outline: none;
+}
+
 /* UI Component: Floating menu */
 
 #vue_menu {

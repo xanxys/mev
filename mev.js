@@ -415,6 +415,7 @@ class MevApplication {
             el: '#vue_anim_control',
             data: {
                 playing: true,
+                wireframeEnabled: false,
             },
             methods: {
                 clickPlayButton: function() {
@@ -422,6 +423,14 @@ class MevApplication {
                 },
                 clickPauseButton: function() {
                     this.playing = false;
+                },
+                clickEnableWireframe: function() {
+                    this.wireframeEnabled = true;
+                    app.vrmRenderer.setWireframe(true);
+                },
+                clickDisableWireframe: function() {
+                    this.wireframeEnabled = false;
+                    app.vrmRenderer.setWireframe(false);
                 },
             },
             computed: {
