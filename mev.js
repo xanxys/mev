@@ -410,12 +410,35 @@ class MevApplication {
                 },
             },
         });
+
+        this.vm_anim = new Vue({
+            el: '#vue_anim_control',
+            data: {
+                playing: true,
+            },
+            methods: {
+                clickPlayButton: function() {
+                    this.playing = true;
+                },
+                clickPauseButton: function() {
+                    this.playing = false;
+                },
+            },
+            computed: {
+                showPlayButton: function () {
+                    return !this.playing;
+                },
+                showPauseButton: function () {
+                    return this.playing;
+                },
+            },
+        });
     }
 
     /** Executes and renders single frame and request next frame. */
     animate() {
         this.controls.update();
-        if (this.motionPlayer !== null) {
+        if (this.motionPlayer !== null && this.vm_anim.playing) {
             this.motionPlayer.stepFrame(this.vm.vrmRoot, this.vrmRenderer);
         }
         this.renderer.render(this.scene, this.camera);
@@ -658,6 +681,7 @@ function main() {
     const app = new MevApplication(window.innerWidth, window.innerHeight, document.body);
     setupStartDialog(file => {
         document.getElementById("vue_menu").style.display = "";
+        document.getElementById("vue_anim_control").style.display = "flex";
         app.loadFbxOrVrm(file);
     });
     app.animate();
