@@ -83,7 +83,6 @@ class MevApplication {
         this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
 
         this.renderer.setClearColor(new THREE.Color("#f5f5f5"));
-        this.scene.add(this._createStage());
         this.scene.add(new THREE.DirectionalLight(0xffffff, 1.0));
         this.scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 0.3));
 
@@ -95,6 +94,7 @@ class MevApplication {
 
         // Overlay UI
         const app = this;
+        app.stage = new Stage(this.scene);
         app.heightIndicator = new HeightIndicator(this.scene);
 
         // ID: http://mocap.cs.cmu.edu/search.php?subjectnumber=%&motion=%
@@ -534,6 +534,15 @@ class MevApplication {
         return canvas.toDataURL("image/png");
     }
 
+}
+
+/// Present rounded rectangle floor.
+/// Shown always.
+class Stage {
+    constructor(scene) {
+        scene.add(this._createStage());
+    }
+
     /**
      * Creates stage with enough space for walking motion. (tied implicitly with motionPlayer)
      */
@@ -541,14 +550,14 @@ class MevApplication {
         const stageMat = new THREE.MeshBasicMaterial({ color: "white" });
         const accentMat = new THREE.MeshBasicMaterial({ color: "grey" });
 
-        const stageBaseGeom = MevApplication._createRoundedQuad(2, 3, 0.3);
+        const stageBaseGeom = Stage._createRoundedQuad(2, 3, 0.3);
         const stageBaseObj = new THREE.Mesh(stageBaseGeom, stageMat);
 
-        const stageAccentGeom = MevApplication._createRoundedQuad(1.8, 2.8, 0.2);
+        const stageAccentGeom = Stage._createRoundedQuad(1.8, 2.8, 0.2);
         const stageAccentObj = new THREE.Mesh(stageAccentGeom, accentMat);
         stageAccentObj.position.y = 5e-3;
 
-        const stageTopGeom = MevApplication._createRoundedQuad(1.78, 2.78, 0.19);
+        const stageTopGeom = Stage._createRoundedQuad(1.78, 2.78, 0.19);
         const stageTopObj = new THREE.Mesh(stageTopGeom, stageMat);
         stageTopObj.position.y = 15e-3;
 
