@@ -2360,6 +2360,8 @@ class GLTFParser {
 							}
 						});
 					}
+
+					node.frustrumCulled = false; // avoid accidental hiding of skinned mesh due to bounding box not following bone deformations
 					return node;
 				});
 

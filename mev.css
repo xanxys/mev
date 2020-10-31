@@ -2,6 +2,21 @@
 
 @import url('https://fonts.googleapis.com/css?family=Noto+Sans+JP');
 @import url('https://fonts.googleapis.com/css?family=Roboto');
+
+/* UI Component: Transparent floating control */
+.floating_button {
+    height: 48px;
+    width: 48px;
+    padding: 12px;
+    background-color: transparent;
+    box-shadow: none;
+}
+
+.floating_button:hover {
+    background-color: rgba(0, 0, 0, 0.2);
+    box-shadow: none;
+}
+
 /* UI Component: Floating menu */
 
 #vue_menu {
