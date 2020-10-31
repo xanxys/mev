@@ -185,14 +185,22 @@ async function reduceMesh(model, target) {
             console.log("VPRedH", vpReductionHeap);
 
             // TODO: Re-compute error after each reduction.
-            for (let i = 0; i < Math.floor(vps.size * (1 - target)); i++) {
+            const numReductionIter = 50; // Math.floor(vps.size * (1 - target))
+            for (let i = 0; i < numReductionIter; i++) {
                 const vp = vpReductionHeap.popmin()[0];
                 let [v0, v1] = decodeVPair(vp);
+
+                const diff = v3sub(pos[v0], pos[v1]);
+                const vlen = Math.sqrt(v3dot(diff, diff));
+                console.log(`Reducing ${v0},${v1} d=${vlen}`);
+
                 v0 = vertexMergeTracker.resolve(v0);
                 v1 = vertexMergeTracker.resolve(v1);
                 if (v0 === v1) {
                     continue; // VP candidate became degenerate due to previous VP collapses.
                 }
+
+                
 
                 const [_, vdst] = computeVPError(v0, v1);
                 const vsrc = (vdst === v0) ? v1 : v0;
@@ -457,7 +465,7 @@ class ArrayPacking {
      * @returns {any[]} packed array
      */
     apply(array) {
-        console.assert(array.length === this.length);
+        console.assert(array.length === this.length, `expected:${this.length} observed:${array.length}`);
         return array.filter((_, ix) => this.mapping.has(ix));
     }
 }
