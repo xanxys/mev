@@ -18,10 +18,23 @@ export class VrmRenderer {
 
         this.instance = null;
         this.instanceContainer = null;
+
+        this.originalMaterials = new Map(); // key: Object3D ID, value: material instance
+        this.wireframeMaterials = new Map(); // key: Object3D ID, value: material instance
     }
 
     setCurrentEmotionId(emotionId) {
         this.currentEmotionId = emotionId;
+    }
+
+    setWireframe(wireframeEnabled) {
+        traverseMesh(this.instance, meshObj => {
+            const matKey = meshObj.uuid;
+            const matCache = wireframeEnabled ? this.wireframeMaterials : this.originalMaterials;
+            if (matCache.has(matKey)) {
+                meshObj.material = matCache.get(matKey);
+            }
+        });
     }
 
     /** Returns a singleton correponding to the model. No need to re-fetch after invalidate(). */
@@ -41,7 +54,31 @@ export class VrmRenderer {
                 console.log("Re-inserting three instance");
                 this.instanceContainer.add(instance);
             }
+            this.generateWireframeMaterials();
             return instance;
+        });
+    }
+
+    generateWireframeMaterials() {
+        let wireframeMaterialsCache = new Map(); // key: original material uuid, value: wireframe material instance
+
+        traverseMesh(this.instance, meshObj => {
+            const origMatId = meshObj.material.uuid;
+            let wireframeMat;
+            if (wireframeMaterialsCache.has(origMatId)) {
+                wireframeMat = wireframeMaterialsCache.get(origMatId);
+            } else {
+                const mat = meshObj.material;
+                wireframeMat = new THREE.MeshBasicMaterial({
+                    wireframe: true,
+                    skinning: mat.skinning,
+                    map: mat.map,
+                }); 
+                wireframeMaterialsCache.set(origMatId, wireframeMat);
+            }
+
+            this.originalMaterials.set(meshObj.uuid, meshObj.material);
+            this.wireframeMaterials.set(meshObj.uuid, wireframeMat);
         });
     }
 

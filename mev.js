@@ -6,7 +6,7 @@ import { setupStartDialog } from './components/start-dialog.js';
 import { setupDetailsDialog } from './components/details-dialog.js';
 import { } from './components/menu-section-emotion.js';
 import { } from './components/menu-section-image.js';
-import { flatten, objectToTreeDebug, blendshapeToEmotionId } from './mev-util.js';
+import { flatten, blendshapeToEmotionId } from './mev-util.js';
 import { MotionPlayer } from './motion.js';
 
 const EMOTION_PRESET_GROUPING = [
@@ -97,16 +97,8 @@ class MevApplication {
         app.stage = new Stage(this.scene);
         app.heightIndicator = new HeightIndicator(this.scene);
 
-        // ID: http://mocap.cs.cmu.edu/search.php?subjectnumber=%&motion=%
-        // 01_09: good complex 3D movement
-        // 09_12: walk in various direction
-        // 40_10: "wait for bus" movement (good for idle)
         this.motionPlayer = null;
-        const req = new Request("https://s3.amazonaws.com/open-motion.herokuapp.com/json/40_10.json");
-        fetch(req).then(response => response.json()).then(json => {
-            console.log("Motion", json);
-            this.motionPlayer = new MotionPlayer(json);
-        });
+        this.prepareMotionPlayer();
 
         this.vm = new Vue({
             el: '#vue_menu',
@@ -415,6 +407,7 @@ class MevApplication {
             el: '#vue_anim_control',
             data: {
                 playing: true,
+                wireframeEnabled: false,
             },
             methods: {
                 clickPlayButton: function() {
@@ -422,6 +415,14 @@ class MevApplication {
                 },
                 clickPauseButton: function() {
                     this.playing = false;
+                },
+                clickEnableWireframe: function() {
+                    this.wireframeEnabled = true;
+                    app.vrmRenderer.setWireframe(true);
+                },
+                clickDisableWireframe: function() {
+                    this.wireframeEnabled = false;
+                    app.vrmRenderer.setWireframe(false);
                 },
             },
             computed: {
@@ -432,6 +433,18 @@ class MevApplication {
                     return this.playing;
                 },
             },
+        });
+    }
+
+    prepareMotionPlayer() {
+        // ID: http://mocap.cs.cmu.edu/search.php?subjectnumber=%&motion=%
+        // 01_09: good complex 3D movement
+        // 09_12: walk in various direction
+        // 40_10: "wait for bus" movement (good for idle)
+        const req = new Request("https://s3.amazonaws.com/open-motion.herokuapp.com/json/40_10.json");
+        fetch(req).then(response => response.json()).then(json => {
+            console.log("Motion", json);
+            this.motionPlayer = new MotionPlayer(json);
         });
     }
 
@@ -448,6 +461,10 @@ class MevApplication {
     loadFbxOrVrm(vrmFile) {
         const isFbx = vrmFile.name.toLowerCase().endsWith('.fbx');
         this.vm.startedLoading = true;
+        if (isFbx) {
+            // Not supported
+            return;
+        }
 
         const vrmExtIndex = vrmFile.name.toLowerCase().lastIndexOf(".vrm");
         this.vm.avatarName = vrmExtIndex >= 0 ? vrmFile.name.substr(0, vrmExtIndex) : vrmFile.name;
@@ -456,33 +473,20 @@ class MevApplication {
         // (inefficient)
         const reader = new FileReader();
         const app = this;
-        const scene = this.scene;
-        if (isFbx) {
-            // Not supported
-        } else {
-            // VRM
-            reader.addEventListener("load", () => {
-                VrmModel.deserialize(reader.result).then(vrmModel => {
-                    app.vrmRenderer = new VrmRenderer(vrmModel);  // Non-Vue binder of vrmModel.
-                    app.vrmRenderer.getThreeInstanceAsync().then(instance => {
 
-                        instance.traverse(o => {
-                            if (o.type === "Bone") {
-                                //o.add(new THREE.AxesHelper(0.3));
-                            }
-
-                        });
-
-
-                        this.scene.add(instance);
-                        // Ideally, this shouldn't need to wait for instance.
-                        // But current MevApplication VM depends A LOT on Three instance...
-                        app.vm.vrmRoot = vrmModel; // Vue binder of vrmModel.
-                    });
+        // VRM
+        reader.addEventListener("load", () => {
+            VrmModel.deserialize(reader.result).then(vrmModel => {
+                app.vrmRenderer = new VrmRenderer(vrmModel);  // Non-Vue binder of vrmModel.
+                app.vrmRenderer.getThreeInstanceAsync().then(instance => {
+                    this.scene.add(instance);
+                    // Ideally, this shouldn't need to wait for instance.
+                    // But current MevApplication VM depends A LOT on Three instance...
+                    app.vm.vrmRoot = vrmModel; // Vue binder of vrmModel.
                 });
             });
-            reader.readAsArrayBuffer(vrmFile);
-        }
+        });
+        reader.readAsArrayBuffer(vrmFile);
     }
 
     /**
