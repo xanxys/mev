@@ -255,15 +255,30 @@ class MevReducerDebugger {
 
         // VRM
         reader.addEventListener("load", () => {
-            VrmModel.deserialize(reader.result).then(vrmModel => {
-                app.vrmRenderer = new VrmRenderer(vrmModel);  // Non-Vue binder of vrmModel.
-                app.vrmRenderer.getThreeInstanceAsync().then(instance => {
-                    this.scene.add(instance);
-                    // Ideally, this shouldn't need to wait for instance.
-                    // But current MevReducerDebugger VM depends A LOT on Three instance...
-                    app.vm.vrmRoot = vrmModel; // Vue binder of vrmModel.
-                });
-            });
+            const meshData = JSON.parse(new TextDecoder().decode(reader.result));
+            console.log(meshData);
+
+            const geom = new THREE.Geometry();
+
+            meshData.attr_pos.forEach(p => geom.vertices.push(new THREE.Vector3(p[0], p[1], p[2])));
+            // TODO: normal
+            //geom.attr_uv0.forEach(p => geom.faceVertexUvs.push(new THREE.Vector2(p[0], p[1])));
+            meshData.attr_uv0.forEach(p => geom.faceVertexUvs.push(new THREE.Vector2(p[0], p[1])));
+
+            for (let i = 0; i < meshData.indices.length; i+=3) {
+                geom.faces.push(new THREE.Face3(meshData.indices[i + 0], meshData.indices[i + 1], meshData.indices[i + 2]));
+            }
+
+            const mat = new THREE.MeshLambertMaterial();
+            geom.computeFaceNormals();
+            const mesh = new THREE.Mesh(geom, mat);
+
+            const directionalLight = new THREE.DirectionalLight( 0xffffff, 0.5 );
+            this.scene.add( directionalLight );
+
+            
+            this.scene.add(mesh);
+            // app.vm.vrmRoot = vrmModel; // Vue binder of vrmModel.
         });
         reader.readAsArrayBuffer(vrmFile);
     }
