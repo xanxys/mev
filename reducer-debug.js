@@ -278,10 +278,36 @@ function reduceMesh(meshData, target) {
     }
     console.assert(newTris.length <= tris.length);
     
-    const allvs = new Set(newTris);
-    const vertexPacking = new ArrayPacking(allvs, meshData.attr_pos.length);
-    console.log(vertexPacking);
+    const vertexPacking = new ArrayPacking(new Set(newTris), meshData.attr_pos.length);
+    return {
+        indices: newTris.map(vix => vertexPacking.convert(vix)),
+        attr_pos: vertexPacking.apply(meshData.attr_pos),
+        attr_nrm: vertexPacking.apply(meshData.attr_nrm),
+        attr_uv0: vertexPacking.apply(meshData.attr_uv0),
+    };
+}
 
+function collapseEdge(meshData, vixSrc, vixDst) {
+    console.assert(0 <= vixSrc && vixSrc < meshData.attr_pos.length);
+    console.assert(0 <= vixDst && vixDst < meshData.attr_pos.length);
+
+    const vertexMergeTracker = new IndexMergeTracker();
+    vertexMergeTracker.mergePair(vixDst, vixSrc);
+
+    const tris = meshData.indices;
+    let newTris = [];
+    for (let i = 0; i < tris.length; i+=3) {
+        const vix0 = vertexMergeTracker.resolve(tris[i + 0]);
+        const vix1 = vertexMergeTracker.resolve(tris[i + 1]);
+        const vix2 = vertexMergeTracker.resolve(tris[i + 2]);
+        if (vix0 === vix1 || vix1 === vix2 || vix2 === vix0) {
+            continue; // omit
+        }
+        // accept
+        newTris.push(vix0, vix1, vix2);
+    }
+
+    const vertexPacking = new ArrayPacking(new Set(newTris), meshData.attr_pos.length);
     return {
         indices: newTris.map(vix => vertexPacking.convert(vix)),
         attr_pos: vertexPacking.apply(meshData.attr_pos),
@@ -350,6 +376,9 @@ class MevReducerDebugger {
                     attr_nrm: [],
                 },
 
+                edgeCollapseSrcVix: 0,
+                edgeCollapseDstVix: 0,
+
                 // UI mode
                 isFatalError: false,
             },
@@ -363,6 +392,10 @@ class MevReducerDebugger {
                 clickReduce: function() {
                     this.meshData = reduceMesh(this.meshData, 0.5);
                     console.log(this.meshData);
+                    this._regenerateThreeModel();
+                },
+                clickCollapseEdge: function() {
+                    this.meshData = collapseEdge(this.meshData, Number.parseInt(this.edgeCollapseSrcVix), Number.parseInt(this.edgeCollapseDstVix));
                     this._regenerateThreeModel();
                 },
                 _regenerateThreeModel: function() {
@@ -404,7 +437,7 @@ class MevReducerDebugger {
                                 font: font,
                                 size: 0.001,
                                 height: 0.0001,
-                                curveSegments: 4,
+                                curveSegments: 2,
                             });
                             const o = new THREE.Mesh(geom, textMat);
                             o.position.set(...pos);

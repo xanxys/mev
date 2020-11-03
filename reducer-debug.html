@@ -29,16 +29,22 @@
     <!-- Menu body (main) -->
     <section class="menu_body">
       <section>
-        <h2>Test</h2>
-      </section>
-
-      <section>
         <h2>Stats</h2>
         <div>{{numTris}} tris</div>
         <div>{{numVerts}} verts</div>
+      </section>
+
+      <section>
+        <h2>Actions</h2>
         <button @click="clickStripVertices">Strip Verices</button>
-        <button @click="clickStep">Step</button>
         <button @click="clickReduce">Reduce</button>
+      </section>
+
+      <section>
+        <h2>Atomic Action: Edge Collapse</h2>
+        src vix <input v-model="edgeCollapseSrcVix"><br/>
+        dst vix <input v-model="edgeCollapseDstVix"><br/>
+        <button @click="clickCollapseEdge">Collapse Edge</button>
       </section>
     </section>
   </div>
