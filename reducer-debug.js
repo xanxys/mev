@@ -372,10 +372,21 @@ class MevReducerDebugger {
                     }
         
                     const mat = new THREE.MeshLambertMaterial();
+                    const matWireframe = new THREE.MeshBasicMaterial({
+                        wireframe: true,
+                        wireframeLinewidth: 3,
+                        color: new THREE.Color('coral'),
+                    });
                     geom.computeFaceNormals();
                     const mesh = new THREE.Mesh(geom, mat);
-                    mesh.name = threeMeshObjectName;
-                    app.scene.add(mesh);
+                    const meshWireframe = new THREE.Mesh(geom, matWireframe);
+
+                    const container = new THREE.Object3D();
+                    container.name = threeMeshObjectName;
+                    container.add(mesh);
+                    container.add(meshWireframe);
+                    
+                    app.scene.add(container);;
                 },
             },
             computed: {
