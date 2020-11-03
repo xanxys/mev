@@ -2,17 +2,8 @@
 import { setupStartDialog } from './components/start-dialog.js';
 
 /**
- * Handle main editor UI & all state. Start dialog is NOT part of this class.
- * 
- * Design:
- *  - Canonical VRM data = VrmModel
- *  - Converter = Converts "VRM data" into ViewModel quickly, realtime.
- *  - Vue data = ViewModel. Write-operation directly goes to VRM data (and notifies converter).
- * 
- * Weight: 0~1.0(vue.js/three.js) 0~100(UI/Unity/VRM). These are typical values, they can be negative or 100+.
+ * Handle main debugger UI & all state. Start dialog is NOT part of this class.
  */
-// TODO: For some reason, computed methods are called every frame. Maybe some internal property in three.js is changing
-// every frame? this is not good for performance, but is acceptable for now...
 class MevReducerDebugger {
     constructor(width, height, canvasInsertionParent) {
         // Three.js canvas
@@ -48,183 +39,26 @@ class MevReducerDebugger {
             data: {
                 // Global
                 startedLoading: false,
-                vrmRoot: null, // VrmModel
+                meshData: {
+                    indices: [],
+                    attr_pos: [],
+                    attr_uv0: [],
+                    attr_nrm: [],
+                },
 
                 // UI mode
                 isFatalError: false,
             },
             methods: {
-                updateVrm: function (newVrm) {
-                    this.vrmRoot = newVrm;
-                    app.vrmRenderer.invalidate();
-                },
-                refreshPage: function () {
-                    location.reload();
-                },
                 clickStep: function() {
-
                 },
             },
             computed: {
-                // Main page state "converter".
-                finalVrmTris: function () {
-                    if (this.vrmRoot === null) {
-                        return "";
-                    }
-                    return "△" + this.vrmRoot.countTotalTris();
+                numTris: function() {
+                    return this.meshData.indices.length / 3;
                 },
-                allWeightCandidates: function () {
-                    var candidates = [];
-                    this.vrmRoot.gltf.meshes.forEach((mesh, meshIndex) => {
-                        mesh.primitives.forEach(prim => {
-                            if (!prim.extras) {
-                                return;
-                            }
-                            prim.extras.targetNames.forEach((morphName, morphIndex) => {
-                                candidates.push({
-                                    // Maybe this can be moved to menu-section-emotion?
-                                    mesh: app.vrmRenderer.getMeshByIndex(meshIndex),
-                                    meshIndex: meshIndex,
-                                    morphIndex: morphIndex,
-                                    morphName: morphName,
-                                });
-                            });
-                        });
-                    });
-                    return candidates;
-                },
-                blendshapeMaster: function () {
-                    if (this.vrmRoot === null) {
-                        return null;
-                    }
-                    return this.vrmRoot.gltf.extensions.VRM.blendShapeMaster;
-                },
-                // Deprecated: Use emotionGroups
-                blendshapes: function () {
-                    if (this.vrmRoot === null) {
-                        return [];
-                    }
-                    this.vrmRoot.version;
-
-                    return this.vrmRoot.gltf.extensions.VRM.blendShapeMaster.blendShapeGroups.map(bs => {
-                        const binds = bs.binds.map(bind => {
-                            const mesh = this.vrmRoot.gltf.meshes[bind.mesh];
-                            return {
-                                meshName: mesh.name,
-                                meshIndex: bind.mesh,
-                                morphName: mesh.primitives[0].extras.targetNames[bind.index],
-                                morphIndex: bind.index,
-                                weight: bind.weight,
-                            };
-                        });
-                        return {
-                            id: blendshapeToEmotionId(bs),
-                            label: bs.presetName !== "unknown" ? EMOTION_PRESET_NAME_TO_LABEL[bs.presetName] : bs.name,
-                            presetName: bs.presetName,  // "unknown" can appear more than once
-                            weightConfigs: binds,
-                        };
-                    });
-                },
-                emotionGroups: function () {
-                    if (this.vrmRoot == null) {
-                        return [];
-                    }
-
-                    const knownNames = new Set(flatten(EMOTION_PRESET_GROUPING));
-
-                    const nameToBlendshape = new Map(this.blendshapes.map(bs => [bs.presetName, bs]));
-                    const groups = EMOTION_PRESET_GROUPING.map(defaultGroupDef => {
-                        return defaultGroupDef.map(name => {
-                            if (nameToBlendshape.has(name)) {
-                                const bs = nameToBlendshape.get(name);
-                                return {
-                                    id: bs.id,
-                                    label: bs.label,
-                                    weightConfigs: bs.weightConfigs,
-                                };
-                            } else {
-                                console.warn("The VRM is missing standard blendshape preset: " + name + ". Creating new one.");
-                                return {
-                                    id: name,
-                                    label: EMOTION_PRESET_NAME_TO_LABEL[name],
-                                    weightConfigs: [],
-                                };
-                            }
-                        });
-                    }
-                    );
-                    const unknownGroup = [];
-                    this.blendshapes.forEach(bs => {
-                        if (knownNames.has(bs.presetName)) {
-                            return;
-                        }
-                        // All unknown blendshape presetName must be unknown.
-                        if (bs.presetName !== "unknown") {
-                            console.warn("Non-comformant emotion preset name found, treating as 'unknown'", bs.presetName)
-                        }
-
-                        unknownGroup.push({
-                            id: bs.id,
-                            label: bs.label,
-                            weightConfigs: bs.weightConfigs,
-                        });
-                    });
-                    if (unknownGroup.length > 0) {
-                        groups.push(unknownGroup);
-                    }
-                    return groups;
-                },
-                currentWeightConfigs: function () {
-                    const nameToBlendshape = new Map(this.blendshapes.map(bs => [bs.id, bs]));
-                    const blendshape = nameToBlendshape.get(this.currentEmotionId);
-                    return blendshape ? blendshape.weightConfigs : [];
-                },
-                springs: function () {
-                    if (this.vrmRoot === null) {
-                        return [];
-                    }
-                    const secAnim = this.vrmRoot.gltf.extensions.VRM.secondaryAnimation;
-                    return (secAnim.boneGroups.concat(secAnim.colliderGroups)).map(g => JSON.stringify(g));
-                },
-                parts: function () {
-                    if (this.vrmRoot === null) {
-                        return [];
-                    }
-                    this.vrmRoot.version; // force depend
-
-                    const parts = [];
-                    this.vrmRoot.gltf.meshes.forEach((mesh, meshIx) => {
-                        mesh.primitives.forEach((prim, primIx) => {
-                            const mat = this.vrmRoot.gltf.materials[prim.material];
-                            const part = {
-                                visibility: true,
-                                // (meshIx, primIx) act as VRM-global prim id.
-                                meshIx: meshIx,
-                                primIx: primIx,
-                                name: mesh.name + ":" + primIx,
-                                shaderName: MevReducerDebugger._getShaderNameFromMaterial(this.vrmRoot, prim.material),
-                                imageId: -1,
-                                textureUrl: null,
-                                numTris: "△" + this.vrmRoot.countPrimitiveTris(prim),
-                            };
-
-                            if (mat.pbrMetallicRoughness.baseColorTexture !== undefined) {
-                                const texId = mat.pbrMetallicRoughness.baseColorTexture.index;
-                                const imageId = this.vrmRoot.gltf.textures[texId].source;
-                                part.imageId = imageId;
-                                part.textureUrl = this.vrmRoot.getImageAsDataUrl(imageId);
-                            }
-
-                            parts.push(part);
-                        });
-                    });
-                    return parts;
-                },
-                partsForCurrentImage: function () {
-                    return this.parts.filter(part => part.imageId === this.currentImageId);
-                },
-                vrmRenderer: function () {
-                    return app.vrmRenderer;
+                numVerts: function() {
+                    return this.meshData.attr_pos.length;
                 },
             },
         });
@@ -238,15 +72,7 @@ class MevReducerDebugger {
     }
 
     loadFbxOrVrm(vrmFile) {
-        const isFbx = vrmFile.name.toLowerCase().endsWith('.fbx');
         this.vm.startedLoading = true;
-        if (isFbx) {
-            // Not supported
-            return;
-        }
-
-        const vrmExtIndex = vrmFile.name.toLowerCase().lastIndexOf(".vrm");
-        this.vm.avatarName = vrmExtIndex >= 0 ? vrmFile.name.substr(0, vrmExtIndex) : vrmFile.name;
 
         // three-vrm currently doesn't have .parse() method, need to convert to data URL...
         // (inefficient)
@@ -278,7 +104,7 @@ class MevReducerDebugger {
 
             
             this.scene.add(mesh);
-            // app.vm.vrmRoot = vrmModel; // Vue binder of vrmModel.
+            app.vm.meshData = meshData;
         });
         reader.readAsArrayBuffer(vrmFile);
     }
