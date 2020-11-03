@@ -203,12 +203,12 @@ function reduceMesh(meshData, target) {
     // TODO: Re-compute error after each reduction.
     const numReductionIter = 50; // Math.floor(vps.size * (1 - target))
     for (let i = 0; i < numReductionIter; i++) {
-        const vp = vpReductionHeap.popmin()[0];
+        const [vp, err] = vpReductionHeap.popmin();
         let [v0, v1] = decodeVPair(vp);
 
         const diff = v3sub(pos[v0], pos[v1]);
         const vlen = Math.sqrt(v3dot(diff, diff));
-        console.log(`Reducing ${v0},${v1} d=${vlen}`);
+        console.log(`Reducing ${v0},${v1} err=${err}, d=${vlen}`);
 
         v0 = vertexMergeTracker.resolve(v0);
         v1 = vertexMergeTracker.resolve(v1);
@@ -245,15 +245,6 @@ function reduceMesh(meshData, target) {
             }
         }
     }
-
-    // baseline: random picking
-    /*
-    const vpReductionOrder = selectRandom(vps, Math.floor(vps.size * (1 - target)));
-    for (const vp of vpReductionOrder) {
-        let [v0, v1] = decodeVPair(vp);
-        vertexMergeTracker.mergePair(v0, v1);
-    }
-    */
 
     // remove degenerate tris
     // Encode triangle's identity, assuming cyclic symmetry. (but not allowing flipping)
@@ -299,6 +290,15 @@ function reduceMesh(meshData, target) {
     };
 }
 
+function stripUnusedVerices(meshData) {
+    const vertexPacking = new ArrayPacking(new Set(meshData.indices), meshData.attr_pos.length);
+    return {
+        indices: meshData.indices.map(vix => vertexPacking.convert(vix)),
+        attr_pos: vertexPacking.apply(meshData.attr_pos),
+        attr_nrm: vertexPacking.apply(meshData.attr_nrm),
+        attr_uv0: vertexPacking.apply(meshData.attr_uv0),
+    };
+}
 
 /**
  * Handle main debugger UI & all state. Start dialog is NOT part of this class.
@@ -331,6 +331,11 @@ class MevReducerDebugger {
         this.scene.add(new THREE.DirectionalLight(0xffffff, 1.0));
         this.scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 0.3));
 
+        this.asyncFont = new Promise((resolve, reject) => {
+            const loader = new THREE.FontLoader();
+            loader.load( '/ui_asset/helvetiker_regular.typeface.json', resolve);
+        });
+
         // Overlay UI
         const app = this;
         this.vm = new Vue({
@@ -349,6 +354,10 @@ class MevReducerDebugger {
                 isFatalError: false,
             },
             methods: {
+                clickStripVertices: function() {
+                    this.meshData = stripUnusedVerices(this.meshData);
+                    this._regenerateThreeModel();
+                },
                 clickStep: function() {
                 },
                 clickReduce: function() {
@@ -378,15 +387,36 @@ class MevReducerDebugger {
                         color: new THREE.Color('coral'),
                     });
                     geom.computeFaceNormals();
-                    const mesh = new THREE.Mesh(geom, mat);
-                    const meshWireframe = new THREE.Mesh(geom, matWireframe);
 
+                    //
                     const container = new THREE.Object3D();
                     container.name = threeMeshObjectName;
-                    container.add(mesh);
-                    container.add(meshWireframe);
+
+                    // Add tris
+                    container.add(new THREE.Mesh(geom, mat));
+                    container.add(new THREE.Mesh(geom, matWireframe));
+
+                    // Add index texts
+                    const textMat = new THREE.MeshBasicMaterial({color: new THREE.Color('black')});
+                    app.asyncFont.then(font => {
+                        this.meshData.attr_pos.slice(0, 500).forEach((pos, ix) => {
+                            const geom = new THREE.TextGeometry(`${ix}`, {
+                                font: font,
+                                size: 0.001,
+                                height: 0.0001,
+                                curveSegments: 4,
+                            });
+                            const o = new THREE.Mesh(geom, textMat);
+                            o.position.set(...pos);
+
+                            container.add(o);
+                        });
+                    });
                     
-                    app.scene.add(container);;
+                    app.scene.add(container);
+                },
+                _focus: function() {
+                    app.controls.target = new THREE.Vector3(...this.meshData.attr_pos[0]);
                 },
             },
             computed: {
@@ -423,6 +453,7 @@ class MevReducerDebugger {
 
             app.vm.meshData = meshData;
             app.vm._regenerateThreeModel();
+            app.vm._focus();
         });
         reader.readAsArrayBuffer(vrmFile);
     }
