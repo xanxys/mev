@@ -21,7 +21,7 @@ export async function reduceVrm(model) {
     await extremeResizeTexture(model, 128);
     await stripAllEmotions(model);
     await removeUnusedMorphs(model);
-    await reduceMesh(model, 0.5);
+    await reduceMesh(model, 0.6);
     await removeUnusedTextures(model);
     await removeUnusedImages(model);
     await removeUnusedAccessors(model);
@@ -44,13 +44,14 @@ async function reduceMesh(model, target) {
     function initErrorMatrix() {
         return new Float64Array(16); // row major (m11, m12, m13, m14, m21, ...)
     }
-    function accumErrorMatrix(m, plane) {
+    function accumErrorMatrix(m, plane, multiplier) {
         console.assert(m.length === 16);
         console.assert(plane.length === 4);
+        multiplier = multiplier ?? 1;
 
         for (let i = 0; i < 4; i++) {
             for (let j = 0; j < 4; j++) {
-                m[i * 4 + j] += plane[i] * plane[j];
+                m[i * 4 + j] += plane[i] * plane[j] * multiplier;
             }
         }
     }
@@ -99,6 +100,21 @@ async function reduceMesh(model, target) {
         const d = -v3dot(p0, n);
         return [n[0], n[1], n[2], d];
     }
+    function getPlane(p, n) {
+        const d = -v3dot(p, n);
+        return [n[0], n[1], n[2], d];
+    }
+    
+    function computeNormal(p0, p1, p2) {
+        return v3normalize(v3cross(v3sub(p1, p0), v3sub(p2, p0)));
+    }
+
+    function encodeVPair(va, vb) {
+        return va < vb ? `${va}:${vb}` : `${vb}:${va}`;
+    }
+    function decodeVPair(vp) {
+        return vp.split(':').map(s => parseInt(s));
+    }
 
     // index buffer (multiple) -> vertex attribs
     model.gltf.meshes.forEach(mesh => {
@@ -107,12 +123,41 @@ async function reduceMesh(model, target) {
             return;
         }
 
+
+        
         const vertexErrorMatrix = new Map(); // vix:error matrix
         mesh.primitives.forEach(prim => {
             const pos = readVecBuffer(model, prim.attributes.POSITION);
-
             const tris = readIndexBuffer(model, prim.indices);
             console.assert(tris.length % 3 === 0);
+
+            // Compute "open" edges for boundary preservation.
+            const vpCount = new Map(); //key:vp-encoding, value:vp-count
+            const vpAnyFaceNormal = new Map(); // key:vp-encoding, value:any of a shared triangle normal
+            for (let i = 0; i < tris.length; i+=3) {
+                const vix0 = tris[i + 0];
+                const vix1 = tris[i + 1];
+                const vix2 = tris[i + 2];
+                const vp0 = encodeVPair(vix0, vix1);
+                const vp1 = encodeVPair(vix1, vix2);
+                const vp2 = encodeVPair(vix2, vix0);
+                vpCount.set(vp0, (vpCount.get(vp0) ?? 0) + 1);
+                vpCount.set(vp1, (vpCount.get(vp1) ?? 0) + 1);
+                vpCount.set(vp2, (vpCount.get(vp2) ?? 0) + 1);
+
+                const n = computeNormal(pos[vix0], pos[vix1], pos[vix2]);
+                vpAnyFaceNormal.set(vp0, n);
+                vpAnyFaceNormal.set(vp1, n);
+                vpAnyFaceNormal.set(vp2, n);
+            }
+            const openEdges = new Set();
+            vpCount.forEach((cnt, vp) => {
+                if (cnt === 1) {
+                    openEdges.add(vp);
+                }
+                // cnt=2: normal edge, cnt>=3: broken edge
+            });
+
             for (let i = 0; i < tris.length; i+=3) {
                 const vix0 = tris[i + 0];
                 const vix1 = tris[i + 1];
@@ -124,18 +169,23 @@ async function reduceMesh(model, target) {
                     vertexErrorMatrix.set(vix, m);
                 }
             }
+            for (let openEdge of openEdges) {
+                const [vix0, vix1] = decodeVPair(openEdge);
+                const edgeDir = v3normalize(v3sub(pos[vix1], pos[vix0]));
+                const faceNormal = vpAnyFaceNormal.get(openEdge);
+                const constraintPlaneNormal = v3cross(edgeDir, faceNormal);
+        
+                // TODO: maybe better to multiply by some scaler? (to more heavily penalize boundary breaking than surface breaking)
+                accumErrorMatrix(vertexErrorMatrix.get(vix0), getPlane(pos[vix0], constraintPlaneNormal), 10);
+                accumErrorMatrix(vertexErrorMatrix.get(vix1), getPlane(pos[vix1], constraintPlaneNormal), 10);
+            }
         });
         console.log("vertex error matrix", vertexErrorMatrix);
 
         const vertexMergeTracker = new IndexMergeTracker();
         const newTrisList = mesh.primitives.map(prim => {
             const vps = new Set(); // vix(small):vix(large)
-            function encodeVPair(va, vb) {
-                return va < vb ? `${va}:${vb}` : `${vb}:${va}`;
-            }
-            function decodeVPair(vp) {
-                return vp.split(':').map(s => parseInt(s));
-            }
+
 
             const pos = readVecBuffer(model, prim.attributes.POSITION);
             const tris = readIndexBuffer(model, prim.indices);
@@ -173,7 +223,7 @@ async function reduceMesh(model, target) {
             console.log("VPRedH", vpReductionHeap);
 
             // TODO: Re-compute error after each reduction.
-            const numReductionIter = 50; // Math.floor(vps.size * (1 - target))
+            const numReductionIter = Math.floor(vps.size * (1 - target));
             for (let i = 0; i < numReductionIter; i++) {
                 const vp = vpReductionHeap.popmin()[0];
                 let [v0, v1] = decodeVPair(vp);
@@ -187,8 +237,6 @@ async function reduceMesh(model, target) {
                 if (v0 === v1) {
                     continue; // VP candidate became degenerate due to previous VP collapses.
                 }
-
-                
 
                 const [_, vdst] = computeVPError(v0, v1);
                 const vsrc = (vdst === v0) ? v1 : v0;
@@ -219,15 +267,6 @@ async function reduceMesh(model, target) {
                     }
                 }
             }
-
-            // baseline: random picking
-            /*
-            const vpReductionOrder = selectRandom(vps, Math.floor(vps.size * (1 - target)));
-            for (const vp of vpReductionOrder) {
-                let [v0, v1] = decodeVPair(vp);
-                vertexMergeTracker.mergePair(v0, v1);
-            }
-            */
 
             // remove degenerate tris
             // Encode triangle's identity, assuming cyclic symmetry. (but not allowing flipping)
