@@ -73,15 +73,48 @@ class IndexMergeTracker {
     }
 }
 
+function v3sub(a, b) {
+    return [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+}
+function v3normalize(a) {
+    const k = 1 / Math.sqrt(a[0] * a[0] + a[1] * a[1] + a[2] * a[2]);
+    return [a[0] * k, a[1] * k, a[2] * k];
+}
+function v3cross(a, b) {
+    return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+}
+function v3dot(a, b) {
+    return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+}
+
+// returns [a,b,c,d] such that ax + by + cz + d = 0, |(a,b,c)| = 1
+function computePlane(p0, p1, p2) {
+    const n = v3normalize(v3cross(v3sub(p1, p0), v3sub(p2, p0)));
+    const d = -v3dot(p0, n);
+    return [n[0], n[1], n[2], d];
+}
+
+function getPlane(p, n) {
+    const d = -v3dot(p, n);
+    return [n[0], n[1], n[2], d];
+}
+
+function computeNormal(p0, p1, p2) {
+    return v3normalize(v3cross(v3sub(p1, p0), v3sub(p2, p0)));
+}
 
 /**
- * Reduces the number of triangles somewhat smartly.
  * "Surface Simplification Using Quadric Error Metrics" (1997)
  * https://www.cs.cmu.edu/~./garland/Papers/quadrics.pdf
  * 
- * @param {number} target number of vertices (0.3: reduce to 30% of vertices)
+ * Sec 6. Preserving Boundaries is SUPER important, as almost all meshes have an open-boundary.
  */
-function reduceMesh(meshData, target) {
+function collapseMinCostEdge(meshData) {
+    const pos = meshData.attr_pos;
+    const tris = meshData.indices;
+    console.assert(tris.length % 3 === 0);
+
+    /** Quadratic utils */
     function initErrorMatrix() {
         return new Float64Array(16); // row major (m11, m12, m13, m14, m21, ...)
     }
@@ -120,31 +153,42 @@ function reduceMesh(meshData, target) {
         return mcombined;
     }
 
-    // assuming CCW triangle
-    function v3sub(a, b) {
-        return [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+    // vix(small):vix(large)
+    function encodeVPair(va, vb) {
+        return va < vb ? `${va}:${vb}` : `${vb}:${va}`;
     }
-    function v3normalize(a) {
-        const k = 1 / Math.sqrt(a[0] * a[0] + a[1] * a[1] + a[2] * a[2]);
-        return [a[0] * k, a[1] * k, a[2] * k];
-    }
-    function v3cross(a, b) {
-        return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
-    }
-    function v3dot(a, b) {
-        return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-    }
-    // returns [a,b,c,d] such that ax + by + cz + d = 0, |(a,b,c)| = 1
-    function computePlane(p0, p1, p2) {
-        const n = v3normalize(v3cross(v3sub(p1, p0), v3sub(p2, p0)));
-        const d = -v3dot(p0, n);
-        return [n[0], n[1], n[2], d];
+    function decodeVPair(vp) {
+        return vp.split(':').map(s => parseInt(s));
     }
 
-    const pos = meshData.attr_pos;
-    const tris = meshData.indices;
-    console.assert(tris.length % 3 === 0);
+    // Compute "open" edges for boundary preservation.
+    const vpCount = new Map(); //key:vp-encoding, value:vp-count
+    const vpAnyFaceNormal = new Map(); // key:vp-encoding, value:any of a shared triangle normal
+    for (let i = 0; i < tris.length; i+=3) {
+        const vix0 = tris[i + 0];
+        const vix1 = tris[i + 1];
+        const vix2 = tris[i + 2];
+        const vp0 = encodeVPair(vix0, vix1);
+        const vp1 = encodeVPair(vix1, vix2);
+        const vp2 = encodeVPair(vix2, vix0);
+        vpCount.set(vp0, (vpCount.get(vp0) ?? 0) + 1);
+        vpCount.set(vp1, (vpCount.get(vp1) ?? 0) + 1);
+        vpCount.set(vp2, (vpCount.get(vp2) ?? 0) + 1);
 
+        const n = computeNormal(pos[vix0], pos[vix1], pos[vix2]);
+        vpAnyFaceNormal.set(vp0, n);
+        vpAnyFaceNormal.set(vp1, n);
+        vpAnyFaceNormal.set(vp2, n);
+    }
+    const openEdges = new Set();
+    vpCount.forEach((cnt, vp) => {
+        if (cnt === 1) {
+            openEdges.add(vp);
+        }
+        // cnt=2: normal edge, cnt>=3: broken edge
+    });
+
+    // Compute vertex error matrices.
     const vertexErrorMatrix = new Map(); // vix:error matrix
     for (let i = 0; i < tris.length; i+=3) {
         const vix0 = tris[i + 0];
@@ -157,16 +201,15 @@ function reduceMesh(meshData, target) {
             vertexErrorMatrix.set(vix, m);
         }
     }
-    console.log("vertex error matrix", vertexErrorMatrix);
+    for (let openEdge of openEdges) {
+        const [vix0, vix1] = decodeVPair(openEdge);
+        const edgeDir = v3normalize(v3sub(pos[vix1], pos[vix0]));
+        const faceNormal = vpAnyFaceNormal.get(openEdge);
+        const constraintPlaneNormal = v3cross(edgeDir, faceNormal);
 
-    const vertexMergeTracker = new IndexMergeTracker();
-
-    const vps = new Set(); // vix(small):vix(large)
-    function encodeVPair(va, vb) {
-        return va < vb ? `${va}:${vb}` : `${vb}:${va}`;
-    }
-    function decodeVPair(vp) {
-        return vp.split(':').map(s => parseInt(s));
+        // TODO: maybe better to multiply by some scaler? (to more heavily penalize boundary breaking than surface breaking)
+        accumErrorMatrix(vertexErrorMatrix.get(vix0), getPlane(pos[vix0], constraintPlaneNormal));
+        accumErrorMatrix(vertexErrorMatrix.get(vix1), getPlane(pos[vix1], constraintPlaneNormal));
     }
 
     function computeVPError(vix0, vix1) {
@@ -182,71 +225,36 @@ function reduceMesh(meshData, target) {
     }
 
     const vpReductionHeap = new MinHeap();
-    const vertexToVps = new Map();
     for (let i = 0; i < tris.length; i+=3) {
         const vix0 = tris[i + 0];
         const vix1 = tris[i + 1];
         const vix2 = tris[i + 2];
-        vps.add(encodeVPair(vix0, vix1));
-        vps.add(encodeVPair(vix1, vix2));
-        vps.add(encodeVPair(vix2, vix0));
         vpReductionHeap.insert(encodeVPair(vix0, vix1), computeVPError(vix0, vix1)[0]);
         vpReductionHeap.insert(encodeVPair(vix1, vix2), computeVPError(vix1, vix2)[0]);
         vpReductionHeap.insert(encodeVPair(vix2, vix0), computeVPError(vix2, vix0)[0]);
-
-        multimapAdd(vertexToVps, vix0, encodeVPair(vix0, vix1), encodeVPair(vix2, vix0));
-        multimapAdd(vertexToVps, vix1, encodeVPair(vix1, vix2), encodeVPair(vix0, vix1));
-        multimapAdd(vertexToVps, vix2, encodeVPair(vix2, vix0), encodeVPair(vix1, vix2));
-    }
-    console.log("VPRedH", vpReductionHeap);
-
-    // TODO: Re-compute error after each reduction.
-    const numReductionIter = 50; // Math.floor(vps.size * (1 - target))
-    for (let i = 0; i < numReductionIter; i++) {
-        const [vp, err] = vpReductionHeap.popmin();
-        let [v0, v1] = decodeVPair(vp);
-
-        const diff = v3sub(pos[v0], pos[v1]);
-        const vlen = Math.sqrt(v3dot(diff, diff));
-        console.log(`Reducing ${v0},${v1} err=${err}, d=${vlen}`);
-
-        v0 = vertexMergeTracker.resolve(v0);
-        v1 = vertexMergeTracker.resolve(v1);
-        if (v0 === v1) {
-            continue; // VP candidate became degenerate due to previous VP collapses.
-        }
-
-        const [_, vdst] = computeVPError(v0, v1);
-        const vsrc = (vdst === v0) ? v1 : v0;
-
-        const mcombined = combineErrorMatrix(vertexErrorMatrix.get(v0), vertexErrorMatrix.get(v1));
-        vertexMergeTracker.mergePair(vdst, vsrc);
-        vertexErrorMatrix.set(vdst, mcombined);
-        multimapAdd(vertexToVps, vdst, ...(vertexToVps.get(vsrc) || []));
-
-        // Recompute error heap.
-        const affectedVps = new Set(vertexToVps.get(vdst) || []);
-        for (const vp of affectedVps) {
-            let [v0, v1] = decodeVPair(vp);
-            v0 = vertexMergeTracker.resolve(v0);
-            v1 = vertexMergeTracker.resolve(v1);
-            const [err, _] = computeVPError(v0, v1);
-
-            // WARNING: This will result in O(V^2 log(V)) time.
-            for (let eix = 0; eix < vpReductionHeap.size(); eix++) {
-                const e = vpReductionHeap.tree[eix];
-                if (affectedVps.has(e[0])) {
-                    if (e[1] < err) { // error nerve become smaller, that's why fix_down is enough.
-                        vpReductionHeap.tree[eix][1] = err;
-                        vpReductionHeap._fix_invariance_down(eix);
-                    }
-                    break;
-                }
-            }
-        }
     }
 
-    // remove degenerate tris
+    // Pick minimum edge
+    const [vp, err] = vpReductionHeap.popmin();
+    let [v0, v1] = decodeVPair(vp);
+
+    const diff = v3sub(pos[v0], pos[v1]);
+    const vlen = Math.sqrt(v3dot(diff, diff));
+    
+    const [_, vdst] = computeVPError(v0, v1);
+    const vsrc = (vdst === v0) ? v1 : v0;
+
+    console.log(`Reducing ${vsrc} -> ${vdst} err=${err}, d=${vlen}`);
+    return collapseEdge(meshData, vsrc, vdst);
+}
+
+function collapseEdge(meshData, vixSrc, vixDst) {
+    console.assert(0 <= vixSrc && vixSrc < meshData.attr_pos.length);
+    console.assert(0 <= vixDst && vixDst < meshData.attr_pos.length);
+
+    const vertexMergeTracker = new IndexMergeTracker();
+    vertexMergeTracker.mergePair(vixDst, vixSrc);
+
     // Encode triangle's identity, assuming cyclic symmetry. (but not allowing flipping)
     function encodeTriKey(v0, v1, v2) {
         const vmin = Math.min(v0, v1, v2);
@@ -258,6 +266,8 @@ function reduceMesh(meshData, target) {
             return `${v2}:${v0}:${v1}`;
         }
     }
+
+    const tris = meshData.indices;
     const triKeys = new Set();
     let newTris = [];
     for (let i = 0; i < tris.length; i+=3) {
@@ -275,36 +285,6 @@ function reduceMesh(meshData, target) {
         // accept
         newTris.push(vix0, vix1, vix2);
         triKeys.add(key);
-    }
-    console.assert(newTris.length <= tris.length);
-    
-    const vertexPacking = new ArrayPacking(new Set(newTris), meshData.attr_pos.length);
-    return {
-        indices: newTris.map(vix => vertexPacking.convert(vix)),
-        attr_pos: vertexPacking.apply(meshData.attr_pos),
-        attr_nrm: vertexPacking.apply(meshData.attr_nrm),
-        attr_uv0: vertexPacking.apply(meshData.attr_uv0),
-    };
-}
-
-function collapseEdge(meshData, vixSrc, vixDst) {
-    console.assert(0 <= vixSrc && vixSrc < meshData.attr_pos.length);
-    console.assert(0 <= vixDst && vixDst < meshData.attr_pos.length);
-
-    const vertexMergeTracker = new IndexMergeTracker();
-    vertexMergeTracker.mergePair(vixDst, vixSrc);
-
-    const tris = meshData.indices;
-    let newTris = [];
-    for (let i = 0; i < tris.length; i+=3) {
-        const vix0 = vertexMergeTracker.resolve(tris[i + 0]);
-        const vix1 = vertexMergeTracker.resolve(tris[i + 1]);
-        const vix2 = vertexMergeTracker.resolve(tris[i + 2]);
-        if (vix0 === vix1 || vix1 === vix2 || vix2 === vix0) {
-            continue; // omit
-        }
-        // accept
-        newTris.push(vix0, vix1, vix2);
     }
 
     const vertexPacking = new ArrayPacking(new Set(newTris), meshData.attr_pos.length);
@@ -352,6 +332,7 @@ class MevReducerDebugger {
         };
 
         this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
+        this.controls.screenSpacePanning = true;
 
         this.renderer.setClearColor(new THREE.Color("#f5f5f5"));
         this.scene.add(new THREE.DirectionalLight(0xffffff, 1.0));
@@ -390,8 +371,13 @@ class MevReducerDebugger {
                 clickStep: function() {
                 },
                 clickReduce: function() {
-                    this.meshData = reduceMesh(this.meshData, 0.5);
-                    console.log(this.meshData);
+                    this.meshData = collapseMinCostEdge(this.meshData);
+                    this._regenerateThreeModel();
+                },
+                clickReduce50: function() {
+                    for (let i = 0; i < 50; i++) {
+                        this.meshData = collapseMinCostEdge(this.meshData);
+                    }
                     this._regenerateThreeModel();
                 },
                 clickCollapseEdge: function() {
@@ -413,15 +399,16 @@ class MevReducerDebugger {
                         geom.faces.push(new THREE.Face3(this.meshData.indices[i + 0], this.meshData.indices[i + 1], this.meshData.indices[i + 2]));
                     }
         
-                    const mat = new THREE.MeshLambertMaterial();
+                    const mat = new THREE.MeshLambertMaterial({
+                        color: new THREE.Color('#E08C4C'),
+                    });
                     const matWireframe = new THREE.MeshBasicMaterial({
                         wireframe: true,
                         wireframeLinewidth: 3,
-                        color: new THREE.Color('coral'),
+                        color: new THREE.Color('#4CCFE0'),
                     });
                     geom.computeFaceNormals();
 
-                    //
                     const container = new THREE.Object3D();
                     container.name = threeMeshObjectName;
 
