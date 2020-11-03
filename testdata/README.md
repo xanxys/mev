@@ -1,4 +1,4 @@
-== Format
+# Format
 
 Vertex attributes + triangles (vertex indices)
 
@@ -11,5 +11,5 @@ Vertex attributes + triangles (vertex indices)
 }
 ```
 
-== Data Source
+# Data Source
 mesh-0 ~ mesh-18: Alicia Solid (https://3d.nicovideo.jp/alicia/) glTF primitives
