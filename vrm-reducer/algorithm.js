@@ -155,3 +155,14 @@ export function selectRandom(iter, k) {
     }
     return elems.slice(0, k);
 }
+
+/**
+ * @param {Map<any, any>} map to be mutated
+ * @param {any} k key
+ * @param {any[]} deltaVs
+ */
+export function multimapAdd(map, k, ...deltaVs) {
+    let vs = map.get(k) || [];
+    vs.push(...deltaVs);
+    map.set(k, vs);
+}

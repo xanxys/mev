@@ -1,7 +1,7 @@
 "use strict"; // ES6
 import { VrmModel } from "../vrm-core/vrm.js";
 import { VrmDependency, TYPE_RMAP, TYPE_FMAP } from "../vrm-core/deps.js";
-import { MinHeap, setSub, mapMerge} from "./algorithm.js";
+import { MinHeap, setSub, mapMerge, multimapAdd} from "./algorithm.js";
 
 /**
  * @param {VrmModel} model: will be mutated
@@ -29,18 +29,6 @@ export async function reduceVrm(model) {
     // await removeAllNames(model);
     model.repackBuffer();
     return null;
-}
-
-
-/**
- * @param {Map<any, any>} map to be mutated
- * @param {any} k key
- * @param {any[]} deltaVs
- */
-function multimapAdd(map, k, ...deltaVs) {
-    let vs = map.get(k) || [];
-    vs.push(...deltaVs);
-    map.set(k, vs);
 }
 
 
