@@ -138,10 +138,12 @@ export class VrmModel {
     }
 
     countPrimitiveTris(primitive) {
-        if (primitive.mode === PRIMITIVE_MODE.TRIANGLES) {
+        const mode = primitive.mode ?? 4;
+        if (mode === PRIMITIVE_MODE.TRIANGLES) {
             const accessor = this.gltf.accessors[primitive.indices];
             return accessor.count / 3;
         }
+        console.log(`Unsupported primitive mode ${mode}`)
         throw "Couldn't count tris";
     }
 
@@ -199,6 +201,7 @@ export class VrmModel {
      */
     _getBufferView(bufferViewIx) {
         const bufferView = this.gltf.bufferViews[bufferViewIx];
-        return this.buffers[bufferView.buffer].slice(bufferView.byteOffset, bufferView.byteOffset + bufferView.byteLength);
+        const offset = bufferView.byteOffset ?? 0;
+        return this.buffers[bufferView.buffer].slice(offset, offset + bufferView.byteLength);
     }
 }
