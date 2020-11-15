@@ -241,7 +241,7 @@ class VrmExtensionMapper {
     _convertBlendshape(blendshape) {
         return {
             blendShapeGroups:
-                blendshape.blendShapeGroups.map(group => this._convertBlendshapeGroup(group)),
+                (blendshape.blendShapeGroups ?? []).map(group => this._convertBlendshapeGroup(group)),
         };
     }
 
@@ -265,7 +265,7 @@ class VrmExtensionMapper {
     // https://github.com/dwango/UniVRM/blob/master/specification/0.0/schema/vrm.humanoid.schema.json
     _convertHumanoid(humanoid) {
         return {
-            humanBones: humanoid.humanBones.map(bone => this._convertHumanoidBone(bone)),
+            humanBones: (humanoid.humanBones ?? []).map(bone => this._convertHumanoidBone(bone)),
             armStretch: humanoid.armStretch,
             legStretch: humanoid.legStretch,
             upperArmTwist: humanoid.upperArmTwist,
