@@ -358,6 +358,9 @@ class MevApplication {
                         return [];
                     }
                     const secAnim = this.vrmRoot.gltf.extensions.VRM.secondaryAnimation;
+                    if (!secAnim || !secAnim.boneGroups) {
+                        return [];
+                    }
                     return (secAnim.boneGroups.concat(secAnim.colliderGroups)).map(g => JSON.stringify(g));
                 },
                 parts: function () {
