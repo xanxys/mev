@@ -129,16 +129,18 @@ function prettyPrintBoneDetails(vrmModel) {
     });
 
     const secAnimBones = new Map();
-    vrmModel.gltf.extensions.VRM.secondaryAnimation.boneGroups.forEach((bg, bgIx) => {
-        const bgName = `spring(${bgIx})`;
-        bg.bones.forEach(boneIx => {
-            secAnimBones.set(boneIx, bgName);
+    if (vrmModel.gltf.extensions.VRM.secondaryAnimation !== undefined) {
+        vrmModel.gltf.extensions.VRM.secondaryAnimation.boneGroups.forEach((bg, bgIx) => {
+            const bgName = `spring(${bgIx})`;
+            bg.bones.forEach(boneIx => {
+                secAnimBones.set(boneIx, bgName);
+            });
         });
-    });
-    vrmModel.gltf.extensions.VRM.secondaryAnimation.colliderGroups.forEach((colg, colgIx) => {
-        const colgName = `colliders(${colgIx})`;
-        secAnimBones.set(colg.node, colgName);
-    });
+        vrmModel.gltf.extensions.VRM.secondaryAnimation.colliderGroups.forEach((colg, colgIx) => {
+            const colgName = `colliders(${colgIx})`;
+            secAnimBones.set(colg.node, colgName);
+        });
+    }
 
     let details = "";
     function dumpNode(nodeIx, indent) {
