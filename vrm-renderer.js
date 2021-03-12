@@ -290,15 +290,19 @@ class VrmExtensionMapper {
     }
 
     _convertFirstperson(firstperson) {
-        return {
+        let fp = {
             firstPersonBone: this.mapper.mapNode(firstperson.firstPersonBone),
             firstPersonBoneOffset: firstperson.firstPersonBoneOffset,
-            meshAnnotations: firstperson.meshAnnotations.map(annot => this._convertFirstpersonMeshannotation(annot)),
+            
             lookAtTypeName: firstperson.lookAtTypeName,
             lookAtHorizontalInner: firstperson.lookAtHorizontalInner,
             lookAtVerticalDown: firstperson.lookAtVerticalDown,
             lookAtVerticalUp: firstperson.lookAtVerticalUp,
         };
+        if (firstperson.meshAnnotations !== undefined) {
+            fp.meshAnnotations = firstperson.meshAnnotations.map(annot => this._convertFirstpersonMeshannotation(annot));
+        }
+        return fp;
     }
 
     _convertFirstpersonMeshannotation(annot) {
