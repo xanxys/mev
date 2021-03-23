@@ -2435,6 +2435,7 @@ function buildNodeHierachy(nodeId, parentObject, json, parser) {
 
 	return parser.getDependency('node', nodeId).then(node => {
 		if (nodeDef.skin === undefined) return node;
+		if (nodeDef.isBone) return node; // TODO: isBone && skin !== undefinedのケースも存在してるが今無視している
 
 		// build skeleton here as well
 		var skinEntry;
