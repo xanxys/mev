@@ -1,7 +1,6 @@
 // ES6
 import { VrmModel } from './vrm-core/vrm.js';
 import { VrmRenderer } from './vrm-renderer.js';
-import { reduceVrm } from './vrm-reducer/vrm-reducer.js';
 import { setupStartDialog } from './components/start-dialog.js';
 import { setupDetailsDialog } from './components/details-dialog.js';
 import { } from './components/menu-section-emotion.js';
@@ -68,7 +67,7 @@ class MevApplication {
 
         this.renderer = new THREE.WebGLRenderer({ antialias: true });
         // Recommended gamma values from https://threejs.org/docs/#examples/loaders/GLTFLoader
-        this.renderer.gammaOutput = true;  // If set, then it expects that all textures and colors need to be outputted in premultiplied gamma.
+        this.renderer.outputEncoding = THREE.sRGBEncoding;
         this.renderer.gammaFactor = 2.2;
         this.renderer.setSize(width, height);
         canvasInsertionParent.appendChild(this.renderer.domElement);
@@ -81,10 +80,7 @@ class MevApplication {
         };
 
         this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
-
-        this.renderer.setClearColor(new THREE.Color("#f5f5f5"));
-        this.scene.add(new THREE.DirectionalLight(0xffffff, 1.0));
-        this.scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 0.3));
+        this.setEnvironment('neutral');
 
         // Setup progress indicator
         new Mprogress({
@@ -169,18 +165,6 @@ class MevApplication {
 
                     this.vrmRoot.serialize().then(buffer => {
                         saveAs(new Blob([buffer], { type: "application/octet-stream" }), "test.vrm");
-                    });
-                },
-                reduceVrm: function (event) {
-                    reduceVrm(this.vrmRoot).then(_ => {
-                        this.updateVrm(this.vrmRoot);
-                        // depends on VrmRenderer
-                        // this._applyEmotion(); // doesn't work for some reason
-                        // this._computeAvatarHeight(); // // doesn't work for some reason
-                        // just slow
-                        this._calculateFinalSizeAsync();
-                        //app.heightIndicator.setHeight(this.avatarHeight);
-                        //app.heightIndicator.setVisible(true);
                     });
                 },
                 showDetails: function (event) {
@@ -427,6 +411,9 @@ class MevApplication {
                     this.wireframeEnabled = false;
                     app.vrmRenderer.setWireframe(false);
                 },
+                clickSetEnv: function(envName) {
+                    app.setEnvironment(envName);
+                },
             },
             computed: {
                 showPlayButton: function () {
@@ -437,6 +424,49 @@ class MevApplication {
                 },
             },
         });
+    }
+
+    setEnvironment(envName) {
+        const NAME_ENV = 'environment';
+
+        while (true) {
+            const obj = this.scene.getObjectByName(NAME_ENV);
+            if (!obj) {
+                break;
+            }
+            this.scene.remove(obj);
+        }
+
+        switch(envName) {
+            case 'neutral': {
+                this.renderer.setClearColor(new THREE.Color("#f5f5f5"));
+
+                const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+                dirLight.name = NAME_ENV;
+                this.scene.add(dirLight);
+        
+                const ambLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.2);
+                ambLight.name = NAME_ENV;
+                this.scene.add(ambLight);
+
+                break;    
+            }
+            case 'dark': {
+                this.renderer.setClearColor(new THREE.Color("#222222"));
+
+                const dirLight = new THREE.DirectionalLight(0xffffff, 0.1);
+                dirLight.name = NAME_ENV;
+                this.scene.add(dirLight);
+        
+                const ambLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.05);
+                ambLight.name = NAME_ENV;
+                this.scene.add(ambLight);
+
+                break;
+            }
+            default:
+                console.error('unknown environment:', envName);
+        }
     }
 
     prepareMotionPlayer() {
@@ -554,7 +584,7 @@ class Stage {
      * Creates stage with enough space for walking motion. (tied implicitly with motionPlayer)
      */
     _createStage() {
-        const stageMat = new THREE.MeshBasicMaterial({ color: "white" });
+        const stageMat = new THREE.MeshLambertMaterial({color: "#f0f0f0f0" });
         const accentMat = new THREE.MeshBasicMaterial({ color: "grey" });
 
         const stageBaseGeom = Stage._createRoundedQuad(2, 3, 0.3);
@@ -610,26 +640,33 @@ class Stage {
             }
         }
 
-        let vertices = new Float32Array(NUM_TRIS * 3 * 3);
+        const vertPos = new Float32Array(NUM_TRIS * 3 * 3);
         for (var ix = 0; ix < NUM_TRIS; ix++) {
             // center
-            vertices[ix * 9 + 0] = 0;
-            vertices[ix * 9 + 1] = 0;
-            vertices[ix * 9 + 2] = 0;
+            vertPos[ix * 9 + 0] = 0;
+            vertPos[ix * 9 + 1] = 0;
+            vertPos[ix * 9 + 2] = 0;
 
             const p = perimeterVerrices[(ix + 1) % perimeterVerrices.length];
-            vertices[ix * 9 + 3] = p.x;
-            vertices[ix * 9 + 4] = p.y;
-            vertices[ix * 9 + 5] = p.z;
+            vertPos[ix * 9 + 3] = p.x;
+            vertPos[ix * 9 + 4] = p.y;
+            vertPos[ix * 9 + 5] = p.z;
 
             const q = perimeterVerrices[ix];
-            vertices[ix * 9 + 6] = q.x;
-            vertices[ix * 9 + 7] = q.y;
-            vertices[ix * 9 + 8] = q.z;
+            vertPos[ix * 9 + 6] = q.x;
+            vertPos[ix * 9 + 7] = q.y;
+            vertPos[ix * 9 + 8] = q.z;
+        }
+        const vertNrm = new Float32Array(NUM_TRIS * 3 * 3);
+        for (var ix_v = 0; ix_v < NUM_TRIS * 3; ix_v++) {
+            vertNrm[ix_v * 3 + 0] = 0;
+            vertNrm[ix_v * 3 + 1] = 1;
+            vertNrm[ix_v * 3 + 2] = 0;
         }
 
-        let geom = new THREE.BufferGeometry();
-        geom.addAttribute("position", new THREE.BufferAttribute(vertices, 3));
+        const geom = new THREE.BufferGeometry();
+        geom.setAttribute("position", new THREE.BufferAttribute(vertPos, 3));
+        geom.setAttribute("normal", new THREE.BufferAttribute(vertNrm, 3));
         return geom;
     }
 }
@@ -660,13 +697,13 @@ class HeightIndicator {
     _createObjects(height) {
         // Arrow
         {
-            const geom = new THREE.Geometry();
-            geom.vertices.push(new THREE.Vector3(0, height, 0));
-            geom.vertices.push(new THREE.Vector3(-0.5, height, 0));
-            const mat = new THREE.LineBasicMaterial({ color: "black" });
+            const geom = new THREE.CylinderGeometry(0.001, 0.001, 0.5, 6);
+            const mat = new THREE.MeshBasicMaterial({ color: "black" });
 
-            this.arrow = new THREE.LineSegments(geom, mat);
+            this.arrow = new THREE.Mesh(geom, mat);
             this.arrow.visible = this.visible;
+            this.arrow.rotateX(Math.PI * 0.5);
+            this.arrow.position.setY(height);
             this.scene.add(this.arrow);
         }
 
@@ -684,7 +721,7 @@ class HeightIndicator {
             const mat = new THREE.SpriteMaterial({ map: tex });
             const sprite = new THREE.Sprite(mat);
             sprite.scale.set(0.5, 0.5, 0.5);
-            sprite.position.set(-0.5, height - 0.05, 0);
+            sprite.position.set(0, height - 0.05, 0);
 
             this.sprite = sprite;
             this.sprite.visible = this.visible;

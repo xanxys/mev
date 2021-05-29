@@ -4,23 +4,13 @@
 
 * 最新安定版: https://xanxys.github.io/mev/
 
-## Roadmap
-
-1. VRM component (bone) editing
-
-2.a. VRM material (-> Set new material with Unlit)
-
-2.b. VRM simple material config (base tex color param)
-
-3. VRM reduction
-
 ## Using as VRM loader library (not officially supported yet)
 
 You will need:
 
 * vrm.js
 * vrm-materials.js
-* (external resource) three.js (R103)
+* (external resource) three.js (r128)
 
 ## Development
 

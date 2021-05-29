@@ -126,29 +126,37 @@
         <div class="normal-text">サイズ: {{finalVrmSizeApprox}}</div>
         <div class="normal-text">ポリゴン: {{finalVrmTris}}</div>
         <button @click="downloadVrm">ダウンロード</button><br/>
-        <button v-if="isDev" @click="reduceVrm">Reduce</button><br v-if="isDev"/>
         <a class="normal-text" href="#" @click="showDetails">データ詳細(開発者向け)</a>
       </section>
     </section>
   </div>
 
   <!-- Display Control Window -->
-  <div style="position: absolute; left: 280px; top: 8px; display: none" id="vue_anim_control">
-    <div style="display: inline-block; height: 48px; padding-top: 12px; color: #222222">アニメーション</div>
+  <div class="anim_panel" style="display: none" id="vue_anim_control">
+    <div style="display: inline-block; height: 48px; padding-top: 12px">アニメーション</div>
     <button class="floating_button" v-if="showPlayButton" @click="clickPlayButton">
-      <img src="ui_asset/play_circle_outline-24px.svg"/>
+      <img src="ui_asset/play_circle_white_24dp.svg"/>
     </button>
     <button class="floating_button" v-if="showPauseButton" @click="clickPauseButton">
-      <img src="ui_asset/pause_circle_outline-24px.svg"/>
+      <img src="ui_asset/pause_circle_white_24dp.svg"/>
     </button>
 
-    <div style="display: inline-block; height: 48px; padding-top: 12px; color: #222222">ワイヤーフレーム表示</div>
+    <div style="display: inline-block; height: 48px; padding-top: 12px; padding-left:24px">ワイヤーフレーム表示</div>
     <button class="floating_button" v-if="!wireframeEnabled" @click="clickEnableWireframe">
-      <img src="ui_asset/check_box_outline_blank-24px.svg"/>
+      <img src="ui_asset/check_box_outline_blank_white_24dp.svg"/>
     </button>
     <button class="floating_button" v-if="wireframeEnabled" @click="clickDisableWireframe">
-      <img src="ui_asset/check_box-24px.svg"/>
+      <img src="ui_asset/check_box_white_24dp.svg"/>
     </button>
+
+    <div style="display: inline-block; height: 48px; padding-top: 12px; padding-left:24px">環境</div>
+    <button class="floating_button" style="width: initial" @click="clickSetEnv('dark')">
+      暗闇
+    </button>
+    <button class="floating_button" style="width: initial" @click="clickSetEnv('neutral')">
+      ニュートラル
+    </button>
+    
   </div>
 
   
@@ -204,8 +212,12 @@
   <!-- Debug -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/2.6.10/vue.js"
     integrity="sha256-ufGElb3TnOtzl5E4c/qQnZFGP+FYEZj5kbSEdJNrw0A=" crossorigin="anonymous"></script>
+    <!--
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/103/three.js"
     integrity="sha256-Dz4QEGvodtXoy6gQW91o97WHBVvVXj7WsVA2LOUigbs=" crossorigin="anonymous"></script>
+    -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.js"
+    integrity="sha512-NLtnLBS9Q2w7GKK9rKxdtgL7rA7CAS85uC/0xd9im4J/yOL4F9ZVlv634NAM7run8hz3wI2GabaA6vv8vJtHiQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 
   <!-- Release -->
   <!--<script src="https://cdnjs.cloudflare.com/ajax/libs/vue/2.6.10/vue.min.js"

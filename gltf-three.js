@@ -1660,12 +1660,9 @@ class GLTFParser {
 				window.URL.createObjectURL(new Blob([bufferView], { type: source.mimeType }))
 			).then(sourceURI => {
 				// Load Texture resource.
-				var loader = THREE.Loader.Handlers.get(sourceURI);
-				if (!loader) {
-					loader = textureExtensions[EXTENSIONS.MSFT_TEXTURE_DDS]
+				var loader = textureExtensions[EXTENSIONS.MSFT_TEXTURE_DDS]
 						? this.extensions[EXTENSIONS.MSFT_TEXTURE_DDS].ddsLoader
 						: this.textureLoader;
-				}
 
 				return new Promise((resolve, reject) => {
 					loader.load(sourceURI, resolve, undefined, reject);
@@ -2496,7 +2493,7 @@ function addPrimitiveAttributes(geometry, primitiveDef, parser) {
 	function assignAttributeAccessor(accessorIndex, attributeName) {
 		return parser.getDependency('accessor', accessorIndex)
 			.then(accessor => {
-				geometry.addAttribute(attributeName, accessor);
+				geometry.setAttribute(attributeName, accessor);
 			});
 	}
 
