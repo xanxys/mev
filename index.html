@@ -141,13 +141,22 @@
       <img src="ui_asset/pause_circle_outline-24px.svg"/>
     </button>
 
-    <div style="display: inline-block; height: 48px; padding-top: 12px; color: #222222">ワイヤーフレーム表示</div>
+    <div style="display: inline-block; height: 48px; padding-top: 12px; padding-left:24px; color: #222222">ワイヤーフレーム表示</div>
     <button class="floating_button" v-if="!wireframeEnabled" @click="clickEnableWireframe">
       <img src="ui_asset/check_box_outline_blank-24px.svg"/>
     </button>
     <button class="floating_button" v-if="wireframeEnabled" @click="clickDisableWireframe">
       <img src="ui_asset/check_box-24px.svg"/>
     </button>
+
+    <div style="display: inline-block; height: 48px; padding-top: 12px; padding-left:24px; color: #222222">環境</div>
+    <button class="floating_button" style="width: initial; color: black" @click="clickSetEnv('dark')">
+      暗闇
+    </button>
+    <button class="floating_button" style="width: initial; color: black" @click="clickSetEnv('neutral')">
+      ニュートラル
+    </button>
+    
   </div>
 
   <!-- Vue.js Components -->
