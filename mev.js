@@ -1,7 +1,6 @@
 // ES6
 import { VrmModel } from './vrm-core/vrm.js';
 import { VrmRenderer } from './vrm-renderer.js';
-import { reduceVrm } from './vrm-reducer/vrm-reducer.js';
 import { setupStartDialog } from './components/start-dialog.js';
 import { setupDetailsDialog } from './components/details-dialog.js';
 import { } from './components/menu-section-emotion.js';
@@ -169,18 +168,6 @@ class MevApplication {
 
                     this.vrmRoot.serialize().then(buffer => {
                         saveAs(new Blob([buffer], { type: "application/octet-stream" }), "test.vrm");
-                    });
-                },
-                reduceVrm: function (event) {
-                    reduceVrm(this.vrmRoot).then(_ => {
-                        this.updateVrm(this.vrmRoot);
-                        // depends on VrmRenderer
-                        // this._applyEmotion(); // doesn't work for some reason
-                        // this._computeAvatarHeight(); // // doesn't work for some reason
-                        // just slow
-                        this._calculateFinalSizeAsync();
-                        //app.heightIndicator.setHeight(this.avatarHeight);
-                        //app.heightIndicator.setVisible(true);
                     });
                 },
                 showDetails: function (event) {

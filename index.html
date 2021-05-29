@@ -126,7 +126,6 @@
         <div class="normal-text">サイズ: {{finalVrmSizeApprox}}</div>
         <div class="normal-text">ポリゴン: {{finalVrmTris}}</div>
         <button @click="downloadVrm">ダウンロード</button><br/>
-        <button v-if="isDev" @click="reduceVrm">Reduce</button><br v-if="isDev"/>
         <a class="normal-text" href="#" @click="showDetails">データ詳細(開発者向け)</a>
       </section>
     </section>
