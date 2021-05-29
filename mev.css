@@ -3,7 +3,17 @@
 @import url('https://fonts.googleapis.com/css?family=Noto+Sans+JP');
 @import url('https://fonts.googleapis.com/css?family=Roboto');
 
-/* UI Component: Transparent floating control */
+
+/* Animation Control Panel */
+.anim_panel {
+    background-color: rgba(0, 0, 0, 0.4);
+    color: white;
+    height: 48px;
+    position: absolute; left: 248px; top: 8px;
+    padding-left: 16px;
+    padding-right: 8px;
+}
+
 .floating_button {
     height: 48px;
     width: 48px;
@@ -22,6 +32,8 @@
     box-shadow: none;
     outline: none;
 }
+
+
 
 /* UI Component: Floating menu */
 

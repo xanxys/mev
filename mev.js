@@ -441,13 +441,14 @@ class MevApplication {
             case 'neutral': {
                 this.renderer.setClearColor(new THREE.Color("#f5f5f5"));
 
-                const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
+                const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
                 dirLight.name = NAME_ENV;
                 this.scene.add(dirLight);
         
-                //const ambLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.3);
-                //ambLight.name = NAME_ENV;
-                //this.scene.add(ambLight);
+                const ambLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.2);
+                ambLight.name = NAME_ENV;
+                this.scene.add(ambLight);
+
                 break;    
             }
             case 'dark': {
@@ -583,7 +584,7 @@ class Stage {
      * Creates stage with enough space for walking motion. (tied implicitly with motionPlayer)
      */
     _createStage() {
-        const stageMat = new THREE.MeshLambertMaterial(); //{ color: "white" });
+        const stageMat = new THREE.MeshLambertMaterial({color: "#f0f0f0f0" });
         const accentMat = new THREE.MeshBasicMaterial({ color: "grey" });
 
         const stageBaseGeom = Stage._createRoundedQuad(2, 3, 0.3);
