@@ -67,7 +67,7 @@ class MevApplication {
 
         this.renderer = new THREE.WebGLRenderer({ antialias: true });
         // Recommended gamma values from https://threejs.org/docs/#examples/loaders/GLTFLoader
-        this.renderer.gammaOutput = true;  // If set, then it expects that all textures and colors need to be outputted in premultiplied gamma.
+        this.renderer.outputEncoding = THREE.sRGBEncoding;
         this.renderer.gammaFactor = 2.2;
         this.renderer.setSize(width, height);
         canvasInsertionParent.appendChild(this.renderer.domElement);
@@ -616,7 +616,7 @@ class Stage {
         }
 
         let geom = new THREE.BufferGeometry();
-        geom.addAttribute("position", new THREE.BufferAttribute(vertices, 3));
+        geom.setAttribute("position", new THREE.BufferAttribute(vertices, 3));
         return geom;
     }
 }
@@ -647,13 +647,13 @@ class HeightIndicator {
     _createObjects(height) {
         // Arrow
         {
-            const geom = new THREE.Geometry();
-            geom.vertices.push(new THREE.Vector3(0, height, 0));
-            geom.vertices.push(new THREE.Vector3(-0.5, height, 0));
-            const mat = new THREE.LineBasicMaterial({ color: "black" });
+            const geom = new THREE.CylinderGeometry(0.001, 0.001, 0.5, 6);
+            const mat = new THREE.MeshBasicMaterial({ color: "black" });
 
-            this.arrow = new THREE.LineSegments(geom, mat);
+            this.arrow = new THREE.Mesh(geom, mat);
             this.arrow.visible = this.visible;
+            this.arrow.rotateX(Math.PI * 0.5);
+            this.arrow.position.setY(height);
             this.scene.add(this.arrow);
         }
 
@@ -671,7 +671,7 @@ class HeightIndicator {
             const mat = new THREE.SpriteMaterial({ map: tex });
             const sprite = new THREE.Sprite(mat);
             sprite.scale.set(0.5, 0.5, 0.5);
-            sprite.position.set(-0.5, height - 0.05, 0);
+            sprite.position.set(0, height - 0.05, 0);
 
             this.sprite = sprite;
             this.sprite.visible = this.visible;

@@ -10,7 +10,7 @@ You will need:
 
 * vrm.js
 * vrm-materials.js
-* (external resource) three.js (R103)
+* (external resource) three.js (r128)
 
 ## Development
 
